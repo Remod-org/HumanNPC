@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.19", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.20", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -1666,11 +1666,19 @@ namespace Oxide.Plugins
 #endif
             }
 
-            bool ontop = Vector3.Distance(source.transform.position, target.transform.position) < .75; // ON TOP OF THEM
-            Collider[] sphere = Physics.OverlapSphere(pos, float.MaxValue, Physics.AllLayers); // Inside a sphere from us out max distance
-            foreach(var ent in sphere)
+            if(Vector3.Distance(source.transform.position, target.transform.position) < .75) // ON TOP OF THEM
             {
-                if(ent.name.Contains("player"))
+#if DEBUG
+                Interface.Oxide.LogInfo($"CanSee(): On 'im!");
+#endif
+                return true;
+            }
+            List<BasePlayer> nearPlayers = new List<BasePlayer>();
+            Vis.Entities<BasePlayer>(pos, float.MaxValue, nearPlayers);
+            //Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers);
+            foreach (var player in nearPlayers)
+            {
+                if (player == target)
                 {
 #if DEBUG
                     Interface.Oxide.LogInfo($"CanSee(): Got 'im!");
@@ -1678,14 +1686,6 @@ namespace Oxide.Plugins
                     npc.LookTowards(target.transform.position);
                     return true;
                 }
-            }
-            if(ontop)
-            {
-#if DEBUG
-                Interface.Oxide.LogInfo($"CanSee(): On 'im!");
-#endif
-                npc.LookTowards(target.transform.position);
-                return true;
             }
 
 #if DEBUG
