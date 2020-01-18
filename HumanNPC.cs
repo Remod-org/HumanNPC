@@ -7,6 +7,7 @@ using Oxide.Core.Configuration;
 using Oxide.Core.Plugins;
 using Oxide.Game.Rust;
 using Rust;
+using Facepunch;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -16,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.23", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.24", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -30,6 +31,9 @@ namespace Oxide.Plugins
         private static int groundLayer;
 
         private Hash<ulong, HumanNPCInfo> humannpcs = new Hash<ulong, HumanNPCInfo>();
+
+        static int playerMask = LayerMask.GetMask("Player (Server)");
+        static int obstructionMask = LayerMask.GetMask(new[] { "Player (Server)", "Construction", "Deployed", "Clutter" });
 
         private bool save;
         private StoredData storedData;
@@ -57,6 +61,18 @@ namespace Oxide.Plugins
                 Speed = speed;
                 Position = position;
             }
+        }
+
+        public static bool IsLayerBlocked(Vector3 position, float radius, int mask)
+        {
+            var colliders = Pool.GetList<Collider>();
+            Vis.Colliders<Collider>(position, radius, colliders, mask, QueryTriggerInteraction.Collide);
+
+            bool blocked = colliders.Count > 0;
+
+            Pool.FreeList<Collider>(ref colliders);
+
+            return blocked;
         }
 
         //////////////////////////////////////////////////////
@@ -185,6 +201,7 @@ namespace Oxide.Plugins
             private float startedReload = 0f;
             private bool reloading = false;
             public bool returning = false;
+            public bool sitting = false;
 
             public BaseCombatEntity attackEntity = null;
             public BaseEntity followEntity = null;
@@ -290,13 +307,79 @@ namespace Oxide.Plugins
                 npc.player.modelState.onground = !IsSwimming();
             }
 
+            public void Evade()
+            {
+                if(IsSwimming()) return;
+                if(npc.info.evade == false) return;
+#if DEBUG
+                Interface.Oxide.LogInfo("Evading...");
+#endif
+                Vector3 ev = new Vector3(UnityEngine.Random.Range(-npc.info.evdist, npc.info.evdist), 0f, UnityEngine.Random.Range(-2f, 2f));
+                npc.player.MovePosition(npc.player.transform.position + ev);
+            }
+
             public bool IsSwimming()
             {
                 return WaterLevel.Test(npc.player.transform.position + new Vector3(0, 0.65f, 0));
             }
 
+            private bool CanSit()
+            {
+                if(sitting)
+                {
+                    return false;
+                }
+                return npc.info.allowsit;
+            }
+
+            public void Sit()
+            {
+                npc.Invoke("AllowMove",0);
+                // Find a place to sit
+                List<BaseChair> chairs = new List<BaseChair>();
+                Vis.Entities<BaseChair>(npc.player.transform.position, 15f, chairs);
+                foreach(var mountable in chairs)
+                {
+#if DEBUG
+                    Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to sit...");
+#endif
+                    if(mountable.IsMounted())
+                    {
+                        continue;
+                    }
+                    npc.player.MountObject(mountable, 0);
+                    npc.player.MovePosition(mountable.mountAnchor.transform.position);
+                    npc.player.transform.rotation = mountable.mountAnchor.transform.rotation;
+                    npc.player.ServerRotation = mountable.mountAnchor.transform.rotation;
+                    npc.player.OverrideViewAngles(mountable.mountAnchor.transform.rotation.eulerAngles);
+                    npc.player.eyes.NetworkUpdate(mountable.mountAnchor.transform.rotation);
+                    npc.player.ClientRPCPlayer<Vector3>(null, npc.player, "ForcePositionTo", npc.player.transform.position);
+                    mountable.SetFlag(BaseEntity.Flags.Busy, true, false);
+                    sitting = true;
+                    break;
+                }
+            }
+
+            public void Stand()
+            {
+                //if(CanSit() && sitting)
+                if(sitting)
+                {
+#if DEBUG
+                    Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to stand...");
+#endif
+//                    npc.Invoke("AllowMove",0);
+                    var mounted = npc.player.GetMounted();
+                    mounted.SetFlag(BaseEntity.Flags.Busy, false, false);
+                    npc.player.DismountObject();
+                    sitting = false;
+                }
+            }
+
             private float GetSpeed(float speed = -1)
             {
+                if (sitting)
+                    speed = 0;
                 if (returning)
                     speed = 7;
                 else if (speed == -1)
@@ -310,6 +393,11 @@ namespace Oxide.Plugins
             private void GetNextPath()
             {
                 if (npc == null) npc = GetComponent<HumanPlayer>();
+
+                if(CanSit() && sitting == false)
+                {
+                    Sit();
+                }
 
                 LastPos = Vector3.zero;
                 if (cachedWaypoints == null)
@@ -797,11 +885,15 @@ namespace Oxide.Plugins
 
             public void Evade()
             {
+                if(player.IsSwimming()) return;
+                if(info.evade == false) return;
 #if DEBUG
                 Interface.Oxide.LogInfo("Evading...");
 #endif
-                Vector3 evade = new Vector3(UnityEngine.Random.Range(-2f, 2f), 0f, UnityEngine.Random.Range(-2f, 2f));
+                Vector3 evade = new Vector3(UnityEngine.Random.Range(-info.evdist, info.evdist), 0f, UnityEngine.Random.Range(-2f, 2f));
+                //evade.y = player.transform.position.y;
                 player.MovePosition(player.transform.position + evade);
+//                locomotion?.Move(player.transform.position + evade);
             }
 
             public void AllowMove()
@@ -1096,6 +1188,9 @@ namespace Oxide.Plugins
             public float reloadDuration;
             public bool needsAmmo;
             public bool defend;
+            public bool evade;
+            public float evdist;
+            public bool allowsit;
             public List<string> message_hello;
             public List<string> message_bye;
             public List<string> message_use;
@@ -1152,6 +1247,9 @@ namespace Oxide.Plugins
                     stopandtalkSeconds = stopandtalkSeconds,
                     lootable = lootable,
                     defend = defend,
+                    evade = evade,
+                    evdist = evdist,
+                    allowsit = allowsit,
                     damageInterval = damageInterval,
                     message_hello = message_hello?.ToList(),
                     message_bye = message_bye?.ToList(),
@@ -1354,7 +1452,9 @@ namespace Oxide.Plugins
                         humanPlayer.TemporaryDisableMove();
                     }
                     if (humanPlayer.info.message_use != null && humanPlayer.info.message_use.Count != 0)
+                    {
                         SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_use));
+                    }
                     Interface.Oxide.CallHook("OnUseNPC", humanPlayer.player, player);
                     break;
                 }
@@ -1368,21 +1468,24 @@ namespace Oxide.Plugins
         private void OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitinfo)
         {
             var humanPlayer = entity.GetComponent<HumanPlayer>();
-            if (humanPlayer != null)
+            if(humanPlayer != null)
             {
-                if (hitinfo.Initiator is BaseCombatEntity && !(hitinfo.Initiator is Barricade) && humanPlayer.info.defend)
+#if DEBUG
+                Interface.Oxide.LogInfo($"OnEntityTakeDamage(by {entity.name})");
+#endif
+                if(hitinfo.Initiator is BaseCombatEntity && !(hitinfo.Initiator is Barricade) && humanPlayer.info.defend)
                 {
                     humanPlayer.StartAttackingEntity((BaseCombatEntity)hitinfo.Initiator);
                 }
-                if (humanPlayer.info.message_hurt != null && humanPlayer.info.message_hurt.Count != 0)
+                if(humanPlayer.info.message_hurt != null && humanPlayer.info.message_hurt.Count != 0)
                 {
-                    if (hitinfo.InitiatorPlayer != null)
+                    if(hitinfo.InitiatorPlayer != null)
                     {
                         SendMessage(humanPlayer, hitinfo.InitiatorPlayer, GetRandomMessage(humanPlayer.info.message_hurt));
                     }
                 }
                 Interface.Oxide.CallHook("OnHitNPC", entity.GetComponent<BaseCombatEntity>(), hitinfo);
-                if (humanPlayer.info.invulnerability)
+                if(humanPlayer.info.invulnerability)
                 {
                     hitinfo.damageTypes = new DamageTypeList();
                     hitinfo.DoHitEffects = false;
@@ -1392,7 +1495,13 @@ namespace Oxide.Plugins
                 {
                     humanPlayer.protection.Scale(hitinfo.damageTypes);
                 }
-                //humanPlayer.Evade();
+
+                if(humanPlayer.locomotion.sitting)
+                {
+                    humanPlayer.locomotion.Stand();
+                    humanPlayer.locomotion.Evade();
+                }
+                humanPlayer.locomotion.Evade();
             }
         }
 
@@ -1405,18 +1514,24 @@ namespace Oxide.Plugins
             var humanPlayer = entity.GetComponent<HumanPlayer>();
             if (humanPlayer?.info == null) return;
             if (!humanPlayer.info.lootable)
+            {
                 humanPlayer.player.inventory?.Strip();
+            }
             var player = hitinfo?.InitiatorPlayer;
             if (player != null)
             {
-                if (humanPlayer.info.message_kill != null && humanPlayer.info.message_kill.Count > 0)
+                if(humanPlayer.info.message_kill != null && humanPlayer.info.message_kill.Count > 0)
+                {
                     SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_kill));
+                }
                 //if (humanPlayer.info.xp > 0)
                 //    player.xp.Add(Definitions.Cheat, humanPlayer.info.xp);
             }
             Interface.Oxide.CallHook("OnKillNPC", entity.GetComponent<BasePlayer>(), hitinfo);
-            if (humanPlayer.info.respawn)
+            if(humanPlayer.info.respawn)
+            {
                 timer.Once(humanPlayer.info.respawnSeconds, () => SpawnOrRefresh(humanPlayer.info.userid));
+            }
         }
 
         private object CanLootPlayer(BasePlayer target, BasePlayer looter)
@@ -1694,11 +1809,17 @@ namespace Oxide.Plugins
 #if DEBUG
                 Interface.Oxide.LogInfo($"CanSee(): In range!");
 #endif
+                //if(!IsLayerBlocked(target.transform.position, npc.info.attackDistance, obstructionMask))
+                if(!IsLayerBlocked(target.transform.position, 10f, obstructionMask))
+                {
+                    npc.Evade();
+                }
+
                 npc.LookTowards(target.transform.position);
                 return true;
             }
             List<BasePlayer> nearPlayers = new List<BasePlayer>();
-            Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers, 17);
+            Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers, playerMask);
             foreach (var player in nearPlayers)
             {
                 if (player == target)
@@ -1706,11 +1827,16 @@ namespace Oxide.Plugins
 #if DEBUG
                     Interface.Oxide.LogInfo($"CanSee(): I can see them!");
 #endif
+                    //if(!IsLayerBlocked(target.transform.position, npc.info.attackDistance, obstructionMask))
+                    if(!IsLayerBlocked(target.transform.position, 10f, obstructionMask))
+                    {
+                        npc.Evade();
+                    }
+
                     npc.LookTowards(target.transform.position);
                     return true;
                 }
             }
-
 #if DEBUG
             Interface.Oxide.LogInfo($"CanSee(): NOPE");
 #endif
@@ -1940,7 +2066,7 @@ namespace Oxide.Plugins
                 SendReply(player, "<color=#81F781>/npc speed</color><color=#F2F5A9> XXX </color>=> <color=#D8D8D8>To set the NPC running speed (while chasing a player)</color>");
                 SendReply(player, "<color=#81F781>/npc stopandtalk</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> XX <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To choose if the NPC should stop & look at the player that is talking to him</color>");
                 SendReply(player, "<color=#81F781>/npc use</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"TEXT\" \"TEXT2\" \"TEXT3\"</color> => <color=#D8D8D8>Dont forgot the \", this what will be said when the player presses USE on the NPC</color>");
-                SendReply(player, "<color=#81F781>/npc waypoints</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"Waypoint list Name\" </color>=> <color=#D8D8D8>To set waypoints of an NPC, /npc_help for more informations</color>");
+                SendReply(player, "<color=#81F781>/npc waypoints</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"Waypoint list Name\" </color>=> <color=#D8D8D8>To set waypoints of an NPC, /npc_help for more information</color>");
                 return;
             }
             var param = args[0].ToLower();
@@ -1952,132 +2078,208 @@ namespace Oxide.Plugins
                     case "name":
                         message = $"This NPC name is: {npcEditor.targetNPC.info.displayName}";
                         break;
-
                     case "enable":
                     case "enabled":
                         message = $"This NPC enabled: {npcEditor.targetNPC.info.enable}";
                         break;
-
                     case "invulnerable":
                     case "invulnerability":
                         message = $"This NPC invulnerability is set to: {npcEditor.targetNPC.info.invulnerability}";
                         break;
-
                     case "lootable":
                         message = $"This NPC lootable is set to: {npcEditor.targetNPC.info.lootable}";
                         break;
-
                     case "hostile":
                         message = $"This NPC hostility is set to: {npcEditor.targetNPC.info.hostile}";
                         break;
-
                     case "defend":
                         message = $"This NPC defend is set to: {npcEditor.targetNPC.info.defend}";
                         break;
-
+                    case "evade":
+                        message = $"This NPC evade is set to: {npcEditor.targetNPC.info.evade}";
+                        break;
+                    case "evdist":
+                        message = $"This NPC evade distance is set to: {npcEditor.targetNPC.info.evade}";
+                        break;
+                    case "allowsit":
+                        message = $"This NPC allowsit is set to: {npcEditor.targetNPC.info.allowsit}";
+                        break;
                     case "needsammo":
                         message = $"This NPC needsAmmo is set to: {npcEditor.targetNPC.info.needsAmmo}";
                         break;
-
                     case "health":
                         message = $"This NPC Initial health is set to: {npcEditor.targetNPC.info.health}";
                         break;
-
                     case "attackdistance":
                         message = $"This Max Attack Distance is: {npcEditor.targetNPC.info.attackDistance}";
                         break;
-
                     case "damageamount":
                         message = $"This Damage amount is: {npcEditor.targetNPC.info.damageAmount}";
                         break;
-
                     case "damageinterval":
                         message = $"This Damage interval is: {npcEditor.targetNPC.info.damageInterval} seconds";
                         break;
-
                     case "maxdistance":
                         message = $"The Max Distance from spawn is: {npcEditor.targetNPC.info.maxDistance}";
                         break;
-
                     case "damagedistance":
                         message = $"This Damage distance is: {npcEditor.targetNPC.info.damageDistance}";
                         break;
-
                     case "radius":
                         message = $"This NPC Collision radius is set to: {npcEditor.targetNPC.info.collisionRadius}";
                         break;
-
                     case "respawn":
                         message = $"This NPC Respawn is set to: {npcEditor.targetNPC.info.respawn} after {npcEditor.targetNPC.info.respawnSeconds} seconds";
                         break;
-
                     case "spawn":
                         message = $"This NPC Spawn is set to: {npcEditor.targetNPC.info.spawnInfo.String()}";
                         break;
-
                     case "speed":
                         message = $"This NPC Chasing speed is: {npcEditor.targetNPC.info.speed}";
                         break;
-
                     case "stopandtalk":
                         message = $"This NPC stop to talk is set to: {npcEditor.targetNPC.info.stopandtalk} for {npcEditor.targetNPC.info.stopandtalkSeconds} seconds";
                         break;
-
                     case "waypoints":
                     case "waypoint":
                         message = string.IsNullOrEmpty(npcEditor.targetNPC.info.waypoint) ? "No waypoints set for this NPC yet" : $"This NPC waypoints are: {npcEditor.targetNPC.info.waypoint}";
                         break;
-
                     case "kit":
                     case "kits":
                         message = string.IsNullOrEmpty(npcEditor.targetNPC.info.spawnkit) ? "No spawn kits set for this NPC yet" : $"This NPC spawn kit is: {npcEditor.targetNPC.info.spawnkit}";
                         break;
-
                     case "hello":
                         if (npcEditor.targetNPC.info.message_hello == null || (npcEditor.targetNPC.info.message_hello.Count == 0))
                             message = "No hello message set yet";
                         else
                             message = $"This NPC will say hi: {npcEditor.targetNPC.info.message_hello.Count} different messages";
                         break;
-
                     case "bye":
                         if (npcEditor.targetNPC.info.message_bye == null || npcEditor.targetNPC.info.message_bye.Count == 0)
                             message = "No bye message set yet";
                         else
                             message = $"This NPC will say bye: {npcEditor.targetNPC.info.message_bye.Count} difference messages ";
                         break;
-
                     case "use":
                         if (npcEditor.targetNPC.info.message_use == null || npcEditor.targetNPC.info.message_use.Count == 0)
                             message = "No bye message set yet";
                         else
                             message = $"This NPC will say bye: {npcEditor.targetNPC.info.message_use.Count} different messages";
                         break;
-
                     case "hurt":
                         if (npcEditor.targetNPC.info.message_hurt == null || npcEditor.targetNPC.info.message_hurt.Count == 0)
                             message = "No hurt message set yet";
                         else
                             message = $"This NPC will say ouch: {npcEditor.targetNPC.info.message_hurt.Count} different messages";
                         break;
-
                     case "kill":
                         if (npcEditor.targetNPC.info.message_kill == null || npcEditor.targetNPC.info.message_kill.Count == 0)
                             message = "No kill message set yet";
                         else
                             message = $"This NPC will say a death message: {npcEditor.targetNPC.info.message_kill.Count} different messages";
                         break;
-
                     case "hitchance":
                         message = $"This NPC hit chance is: {npcEditor.targetNPC.info.hitchance}";
                         break;
-
                     case "reloadduration":
                         message = $"This NPC reload duration is: {npcEditor.targetNPC.info.reloadDuration}";
                         break;
+                    case "stand":
+                        message = $"Standing!";
+                        npcEditor.targetNPC.info.allowsit = false;
+                        npcEditor.targetNPC.locomotion.Stand();
+                        break;
+                    case "sit":
+                        message = $"Sitting!";
+                        npcEditor.targetNPC.info.allowsit = true;
+                        npcEditor.targetNPC.locomotion.Sit();
+                        break;
+                    case "info":
+                        message = $" {npcEditor.targetNPC.info.displayName}\n"
+                            + $"\tenabled: {npcEditor.targetNPC.info.enable}\n"
+                            + $"\tinvulnerability: {npcEditor.targetNPC.info.invulnerability}\n"
+                            + $"\tlootable: {npcEditor.targetNPC.info.lootable}\n"
+                            + $"\thostility: {npcEditor.targetNPC.info.hostile}\n"
+                            + $"\tdefend: {npcEditor.targetNPC.info.defend}\n"
+                            + $"\tevade: {npcEditor.targetNPC.info.evade}\n"
+                            + $"\tevdist: {npcEditor.targetNPC.info.evdist}\n"
+                            + $"\tallowsit: {npcEditor.targetNPC.info.allowsit}\n"
+                            + $"\tsitting: {npcEditor.targetNPC.locomotion.sitting}\n"
+                            + $"\tneedsAmmo: {npcEditor.targetNPC.info.needsAmmo}\n"
+                            + $"\tinitial health: {npcEditor.targetNPC.info.health}\n"
+                            + $"\tmax attack distance: {npcEditor.targetNPC.info.attackDistance}\n"
+                            + $"\tdamage amount: {npcEditor.targetNPC.info.damageAmount}\n"
+                            + $"\tdamage interval: {npcEditor.targetNPC.info.damageInterval} seconds\n"
+                            + $"\tmax Distance from spawn: {npcEditor.targetNPC.info.maxDistance}\n"
+                            + $"\tdamage distance: {npcEditor.targetNPC.info.damageDistance}\n"
+                            + $"\tcollision radius: {npcEditor.targetNPC.info.collisionRadius}\n"
+                            + $"\trespawn: {npcEditor.targetNPC.info.respawn} after {npcEditor.targetNPC.info.respawnSeconds} seconds\n"
+                            + $"\tspawn:\n\t\t{npcEditor.targetNPC.info.spawnInfo.String()}\n"
+                            + $"\tchasing speed: {npcEditor.targetNPC.info.speed}\n"
+                            + $"\tstop to talk: {npcEditor.targetNPC.info.stopandtalk} for {npcEditor.targetNPC.info.stopandtalkSeconds} seconds\n";
+                        if(npcEditor.targetNPC.info.waypoint == null)
+                        {
+                            message += "\tNo waypoints";
+                        }
+                        else
+                        {
+                            message += $"\twaypoints: {npcEditor.targetNPC.info.waypoint}\n";
+                        }
+                        if(npcEditor.targetNPC.info.spawnkit == null)
+                        {
+                            message += "\tNo kits\n";
+                        }
+                        else
+                        {
+                            message += $"\tspawn kit: {npcEditor.targetNPC.info.spawnkit}\n";
+                        }
+                        if (npcEditor.targetNPC.info.message_hello == null || (npcEditor.targetNPC.info.message_hello.Count == 0))
+                        {
+                            message += "\tNo hello message set yet\n";
+                        }
+                        else
+                        {
+                            message += $"\twill say hi: {npcEditor.targetNPC.info.message_hello.Count} different messages\n";
+                        }
+                        if (npcEditor.targetNPC.info.message_bye == null || npcEditor.targetNPC.info.message_bye.Count == 0)
+                        {
+                            message += "\tNo bye message set yet\n";
+                        }
+                        else
+                        {
+                            message += $"\twill say bye: {npcEditor.targetNPC.info.message_bye.Count} difference messages\n";
+                        }
+                        if (npcEditor.targetNPC.info.message_use == null || npcEditor.targetNPC.info.message_use.Count == 0)
+                        {
+                            message += "\tNo bye message set yet\n";
+                        }
+                        else
+                        {
+                            message += $"\twill say bye: {npcEditor.targetNPC.info.message_use.Count} different messages\n";
+                        }
+                        if (npcEditor.targetNPC.info.message_hurt == null || npcEditor.targetNPC.info.message_hurt.Count == 0)
+                        {
+                            message += "\tNo hurt message set yet\n";
+                        }
+                        else
+                        {
+                            message += $"\twill say ouch: {npcEditor.targetNPC.info.message_hurt.Count} different messages\n";
+                        }
+                        if (npcEditor.targetNPC.info.message_kill == null || npcEditor.targetNPC.info.message_kill.Count == 0)
+                        {
+                            message += "\tNo kill message set yet\n";
+                        }
+                        else
+                        {
+                            message += $"\twill say a death message: {npcEditor.targetNPC.info.message_kill.Count} different messages\n";
+                        }
+                        message += $"\thit chance: {npcEditor.targetNPC.info.hitchance}\n";
+                        message += $"\treload duration: {npcEditor.targetNPC.info.reloadDuration}\n";
 
+                        SendReply(player, $"NPC Info: {message}\n\n");
+                        break;
                     default:
-                        message = "Wrong Argument, /Npc for more informations";
+                        message = "Wrong Argument.  /npc for more information.";
                         break;
                 }
                 SendReply(player, message);
@@ -2088,68 +2290,62 @@ namespace Oxide.Plugins
                 case "name":
                     npcEditor.targetNPC.info.displayName = args[1];
                     break;
-
                 case "enable":
                 case "enabled":
                     npcEditor.targetNPC.info.enable = GetBoolValue(args[1]);
                     break;
-
                 case "invulnerable":
                 case "invulnerability":
                     npcEditor.targetNPC.info.invulnerability = GetBoolValue(args[1]);
                     break;
-
                 case "lootable":
                     npcEditor.targetNPC.info.lootable = GetBoolValue(args[1]);
                     break;
-
                 case "hostile":
                     npcEditor.targetNPC.info.hostile = GetBoolValue(args[1]);
                     break;
-
                 case "defend":
                     npcEditor.targetNPC.info.defend = GetBoolValue(args[1]);
                     break;
-
+                case "evade":
+                    npcEditor.targetNPC.info.evade = GetBoolValue(args[1]);
+                    break;
+                case "evdist":
+                    npcEditor.targetNPC.info.evdist = Convert.ToSingle(args[1]);
+                    break;
+                case "allowsit":
+                    npcEditor.targetNPC.info.allowsit = GetBoolValue(args[1]);
+                    break;
                 case "needsammo":
                     npcEditor.targetNPC.info.needsAmmo = GetBoolValue(args[1]);
                     break;
-
                 case "health":
                     npcEditor.targetNPC.info.health = Convert.ToSingle(args[1]);
                     break;
-
                 case "attackdistance":
                     npcEditor.targetNPC.info.attackDistance = Convert.ToSingle(args[1]);
                     break;
-
                 case "damageamount":
                     npcEditor.targetNPC.info.damageAmount = Convert.ToSingle(args[1]);
                     break;
-
                 case "damageinterval":
                     npcEditor.targetNPC.info.damageInterval = Convert.ToSingle(args[1]);
                     break;
-
                 case "maxdistance":
                     npcEditor.targetNPC.info.maxDistance = Convert.ToSingle(args[1]);
                     break;
-
                 case "damagedistance":
                     npcEditor.targetNPC.info.damageDistance = Convert.ToSingle(args[1]);
                     break;
-
                 case "radius":
                     npcEditor.targetNPC.info.collisionRadius = Convert.ToSingle(args[1]);
                     break;
-
                 case "respawn":
                     npcEditor.targetNPC.info.respawn = GetBoolValue(args[1]);
                     npcEditor.targetNPC.info.respawnSeconds = 60;
                     if (args.Length > 2)
                         npcEditor.targetNPC.info.respawnSeconds = Convert.ToSingle(args[2]);
                     break;
-
                 case "spawn":
                     Quaternion currentRot;
                     TryGetPlayerView(player, out currentRot);
@@ -2157,18 +2353,15 @@ namespace Oxide.Plugins
                     npcEditor.targetNPC.info.spawnInfo = newSpawn;
                     SendReply(player, $"This NPC Spawn now is set to: {newSpawn.String()}");
                     break;
-
                 case "speed":
                     npcEditor.targetNPC.info.speed = Convert.ToSingle(args[1]);
                     break;
-
                 case "stopandtalk":
                     npcEditor.targetNPC.info.stopandtalk = GetBoolValue(args[1]);
                     npcEditor.targetNPC.info.stopandtalkSeconds = 3;
                     if (args.Length > 2)
                         npcEditor.targetNPC.info.stopandtalkSeconds = Convert.ToSingle(args[2]);
                     break;
-
                 case "waypoints":
                 case "waypoint":
                     var name = args[1].ToLower();
@@ -2181,42 +2374,33 @@ namespace Oxide.Plugins
                     }
                     else npcEditor.targetNPC.info.waypoint = name;
                     break;
-
                 case "kit":
                 case "kits":
                     npcEditor.targetNPC.info.spawnkit = args[1].ToLower();
                     break;
-
                 case "hello":
                     npcEditor.targetNPC.info.message_hello = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
                     break;
-
                 case "bye":
                     npcEditor.targetNPC.info.message_bye = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
                     break;
-
                 case "use":
                     npcEditor.targetNPC.info.message_use = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
                     break;
-
                 case "hurt":
                     npcEditor.targetNPC.info.message_hurt = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
                     break;
-
                 case "kill":
                     npcEditor.targetNPC.info.message_kill = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
                     break;
-
                 case "hitchance":
                     npcEditor.targetNPC.info.hitchance = Convert.ToSingle(args[1]);
                     break;
-
                 case "reloadduration":
                     npcEditor.targetNPC.info.reloadDuration = Convert.ToSingle(args[1]);
                     break;
-
                 default:
-                    SendReply(player, "Wrong Argument, /npc for more informations");
+                    SendReply(player, "Wrong Argument, /npc for more information");
                     return;
             }
             SendReply(player, $"NPC Editor: Set {args[0]} to {args[1]}");
@@ -2359,9 +2543,18 @@ namespace Oxide.Plugins
             if (player.userID < 76560000000000000L) return;
             var humanPlayer = npc.GetComponent<HumanPlayer>();
             if (humanPlayer.info.message_hello != null && humanPlayer.info.message_hello.Count > 0)
+            {
                 SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_hello));
-            if (humanPlayer.info.hostile && player.GetComponent<NPCEditor>() == null && !(bool)(Vanish?.CallHook("IsInvisible", player) ?? false))
+            }
+            if(humanPlayer.info.hostile && player.GetComponent<NPCEditor>() == null && !(bool)(Vanish?.CallHook("IsInvisible", player) ?? false))
+            {
+                if(humanPlayer.locomotion.sitting)
+                {
+                    humanPlayer.locomotion.Stand();
+                    humanPlayer.locomotion.Evade();
+                }
                 humanPlayer.StartAttackingEntity(player);
+            }
         }
 
         //////////////////////////////////////////////////////
@@ -2373,7 +2566,9 @@ namespace Oxide.Plugins
             if (player.userID < 76560000000000000L) return;
             var humanPlayer = npc.GetComponent<HumanPlayer>();
             if (humanPlayer.info.message_bye != null && humanPlayer.info.message_bye.Count > 0)
+            {
                 SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_bye));
+            }
         }
 
         //////////////////////////////////////////////////////
