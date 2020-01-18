@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.24", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.25", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -338,19 +338,25 @@ namespace Oxide.Plugins
                 // Find a place to sit
                 List<BaseChair> chairs = new List<BaseChair>();
                 Vis.Entities<BaseChair>(npc.player.transform.position, 15f, chairs);
-                foreach(var mountable in chairs)
+                foreach(var mountable in chairs.Distinct().ToList())
                 {
 #if DEBUG
                     Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to sit...");
 #endif
                     if(mountable.IsMounted())
                     {
+#if DEBUG
+                        Interface.Oxide.LogInfo($"Someone is sitting here.");
+#endif
                         continue;
                     }
-                    npc.player.MountObject(mountable, 0);
-                    npc.player.MovePosition(mountable.mountAnchor.transform.position);
-                    npc.player.transform.rotation = mountable.mountAnchor.transform.rotation;
-                    npc.player.ServerRotation = mountable.mountAnchor.transform.rotation;
+#if DEBUG
+                    Interface.Oxide.LogInfo($"Found an empty chair.");
+#endif
+                    mountable.MountPlayer(npc.player);
+                    //npc.player.MovePosition(mountable.mountAnchor.transform.position);
+                    //npc.player.transform.rotation = mountable.mountAnchor.transform.rotation;
+                    //npc.player.ServerRotation = mountable.mountAnchor.transform.rotation;
                     npc.player.OverrideViewAngles(mountable.mountAnchor.transform.rotation.eulerAngles);
                     npc.player.eyes.NetworkUpdate(mountable.mountAnchor.transform.rotation);
                     npc.player.ClientRPCPlayer<Vector3>(null, npc.player, "ForcePositionTo", npc.player.transform.position);
@@ -370,8 +376,8 @@ namespace Oxide.Plugins
 #endif
 //                    npc.Invoke("AllowMove",0);
                     var mounted = npc.player.GetMounted();
+                    mounted.DismountPlayer(npc.player);
                     mounted.SetFlag(BaseEntity.Flags.Busy, false, false);
-                    npc.player.DismountObject();
                     sitting = false;
                 }
             }
@@ -1446,6 +1452,10 @@ namespace Oxide.Plugins
                 var humanPlayer = hitpoints[i].collider.GetComponentInParent<HumanPlayer>();
                 if (humanPlayer != null)
                 {
+                    if(humanPlayer.locomotion.sitting)
+                    {
+                        humanPlayer.locomotion.Stand();
+                    }
                     if (humanPlayer.info.stopandtalk && humanPlayer.locomotion.attackEntity == null)
                     {
                         humanPlayer.LookTowards(player.transform.position);
