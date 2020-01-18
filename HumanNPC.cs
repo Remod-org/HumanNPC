@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.20", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.21", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -1469,7 +1469,8 @@ namespace Oxide.Plugins
             }
             foreach (BasePlayer player in Resources.FindObjectsOfTypeAll<BasePlayer>())
             {
-                if (player.userID >= 76560000000000000L || player.userID <= 0L || npcspawned.Contains(player.userID) || player.IsDestroyed) continue;
+//                if (player.userID >= 76560000000000000L || player.userID <= 0L || npcspawned.Contains(player.userID) || player.IsDestroyed) continue;
+                if (player.userID >= 76560000000000000L || player.userID <= 0L || npcspawned.Contains(player.userID) || player.IsDestroyed || (player.userID.ToString() == player.displayName)) continue;
                 player.KillMessage();
                 PrintWarning($"Detected a HumanNPC with no data or disabled, deleting him: {player.userID} {player.displayName}");
             }
@@ -1674,8 +1675,8 @@ namespace Oxide.Plugins
                 return true;
             }
             List<BasePlayer> nearPlayers = new List<BasePlayer>();
-            Vis.Entities<BasePlayer>(pos, float.MaxValue, nearPlayers);
-            //Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers);
+            //Vis.Entities<BasePlayer>(pos, float.MaxValue, nearPlayers);
+            Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers);
             foreach (var player in nearPlayers)
             {
                 if (player == target)
