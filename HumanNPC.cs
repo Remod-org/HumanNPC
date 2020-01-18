@@ -1,5 +1,5 @@
+//#define DEBUG
 // Requires: PathFinding
-
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oxide.Core;
@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.18", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.19", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -108,7 +108,9 @@ namespace Oxide.Plugins
 
             private void OnDestroy()
             {
+#if DEBUG
                 //Interface.Oxide.LogInfo("Destroy child: {0}", child?.name);
+#endif
                 CancelInvoke("UpdateTriggerArea");
             }
 
@@ -230,7 +232,9 @@ namespace Oxide.Plugins
                             }
                             else
                             {
+#if DEBUG
                                 Interface.Oxide.LogInfo("Blocked waypoint? {0} for {1}", pair.Key, npc.player.displayName);
+#endif
                                 //cachedWaypoints.Add(new WaypointInfo(pair.Key, speed));
                             }
                         }
@@ -245,11 +249,15 @@ namespace Oxide.Plugins
                         }
                         else
                         {
+#if DEBUG
                             Interface.Oxide.LogInfo("Blocked waypoint to spawn? {0} for {1}", lastPos, npc.player.displayName);
+#endif
                         }
                     }
                     if (cachedWaypoints.Count <= 0) cachedWaypoints = null;
-                    //Interface.Oxide.LogInfo("Waypoints: {0} for {1}", cachedWaypoints.Count, npc.player.displayName);
+#if DEBUG
+                    Interface.Oxide.LogInfo("Waypoints: {0} for {1}", cachedWaypoints.Count, npc.player.displayName);
+#endif
                 }
             }
             private void FixedUpdate()
@@ -381,7 +389,9 @@ namespace Oxide.Plugins
 
             private void ProcessAttack(BaseCombatEntity entity)
             {
-                //Interface.Oxide.LogInfo("ProcessAttack: {0} - {1}", npc.player.displayName, entity.name);
+#if DEBUG
+                Interface.Oxide.LogInfo("ProcessAttack: {0} -> {1}", npc.player.displayName, entity.name);
+#endif
                 if (entity != null && entity.IsAlive())
                 {
                     var c_attackDistance = Vector3.Distance(entity.transform.position, npc.player.transform.position);
@@ -389,27 +399,39 @@ namespace Oxide.Plugins
 
                     bool validAttack = Vector3.Distance(LastPos, npc.player.transform.position) < npc.info.maxDistance && noPath < 5;
 
-                    //Interface.Oxide.LogInfo("Entity: {0} {1} {2}", entity.GetType().FullName, entity.IsAlive(), validAttack);
+#if DEBUG
+                    Interface.Oxide.LogInfo("  Entity: Type {0}, alive {1}, valid {2}", entity.GetType().FullName, entity.IsAlive(), validAttack);
+#endif
                     if (validAttack)
                     {
                         var range = c_attackDistance < npc.info.damageDistance;
                         var see = CanSee(npc, entity);
-                        //Interface.Oxide.LogInfo("Entity: {0} {1} {2}", entity.GetType().FullName, range, see);
+#if DEBUG
+                        Interface.Oxide.LogInfo("  validAttack Entity: Type {0}, ranged {1}, cansee {2}", entity.GetType().FullName, range, see);
+#endif
                         if (range && see)
                         {
                             AttemptAttack(entity);
                             return;
                         }
                         if (GetSpeed() <= 0)
+                        {
                             npc.EndAttackingEntity();
+                        }
                         else
+                        {
                             Move(npc.player.transform.position);
+                        }
                     }
                     else
+                    {
                         npc.EndAttackingEntity();
+                    }
                 }
                 else
+                {
                     npc.EndAttackingEntity();
+                }
             }
 
             public void ProcessFollow(Vector3 target)
@@ -545,13 +567,17 @@ namespace Oxide.Plugins
             {
                 if (baseProjectile.primaryMagazine.contents <= 0)
                 {
-                    //Interface.Oxide.LogInfo("Attack failed(empty): {0} - {1}", npc.player.displayName, attackEntity.name);
+#if DEBUG
+                    Interface.Oxide.LogInfo("Attack failed(empty): {0} - {1}", npc.player.displayName, attackEntity.name);
+#endif
                     return;
                 }
                 var component = baseProjectile.primaryMagazine.ammoType.GetComponent<ItemModProjectile>();
                 if (component == null)
                 {
-                    //Interface.Oxide.LogInfo("Attack failed(Component): {0} - {1}", npc.player.displayName, attackEntity.name);
+#if DEBUG
+                    Interface.Oxide.LogInfo("Attack failed(Component): {0} - {1}", npc.player.displayName, attackEntity.name);
+#endif
                     return;
                 }
                 npc.LookTowards(target.transform.position);
@@ -568,14 +594,18 @@ namespace Oxide.Plugins
                     hit = target.transform.position + npc.player.GetOffset(true);
                 else if (!Physics.SphereCast(source, .01f, vector32, out raycastHit, float.MaxValue, targetLayer))
                 {
-                    //Interface.Oxide.LogInfo("Attack failed: {0} - {1}", npc.player.displayName, attackEntity.name);
+#if DEBUG
+                    Interface.Oxide.LogInfo("Attack failed: {0} - {1}", npc.player.displayName, attackEntity.name);
+#endif
                     return;
                 }
                 else
                 {
                     hit = raycastHit.point;
                     target = raycastHit.GetCollider().GetComponent<BaseCombatEntity>();
-                    //Interface.Oxide.LogInfo("Attack failed: {0} - {1}", raycastHit.GetCollider().name, (Rust.Layer)raycastHit.GetCollider().gameObject.layer);
+#if DEBUG
+                    Interface.Oxide.LogInfo("Attack failed: {0} - {1}", raycastHit.GetCollider().name, (Rust.Layer)raycastHit.GetCollider().gameObject.layer);
+#endif
                     miss = miss || target == null;
                 }
                 baseProjectile.primaryMagazine.contents--;
@@ -642,7 +672,9 @@ namespace Oxide.Plugins
                             npc.player.inventory.ServerUpdate(0f);
                         }
                         else
+                        {
                             weapon.primaryMagazine.contents = weapon.primaryMagazine.capacity;
+                        }
                     }
                     if (reloading) return;
                 }
@@ -711,11 +743,6 @@ namespace Oxide.Plugins
 
             public float lastMessage;
 
-            public List<TuneNote> tunetoplay = new List<TuneNote>();
-            public int currentnote = 0;
-            private Effect effectP = new Effect("assets/prefabs/instruments/guitar/effects/guitarpluck.prefab", new Vector3(0, 0, 0), Vector3.forward);
-            private Effect effectS = new Effect("assets/prefabs/instruments/guitar/effects/guitarpluck.prefab", new Vector3(0, 0, 0), Vector3.forward);
-
             private void Awake()
             {
                 player = GetComponent<BasePlayer>();
@@ -741,7 +768,6 @@ namespace Oxide.Plugins
                     var newEyes = info.spawnInfo.position + new Vector3(0, 1.6f, 0);
                     player.eyes.position.Set(newEyes.x, newEyes.y, newEyes.z);
                     player.EndSleeping();
-                    if (info.minstrel != null) PlayTune();
                     protection.Clear();
                     foreach (var pro in info.protections)
                         protection.Add(pro.Key, pro.Value);
@@ -823,34 +849,7 @@ namespace Oxide.Plugins
                 }
                 locomotion.targetPosition = Vector3.zero;
             }
-            public void PlayTune()
-            {
-                if (info.minstrel == null || gameObject == null) return;
-                if (tunetoplay.Count == 0) GetTune(this);
-                if (tunetoplay.Count == 0) return;
-                Invoke("PlayNote", 1);
-            }
-            public void PlayNote()
-            {
-                if (tunetoplay[currentnote].Pluck)
-                {
-                    effectP.worldPos = player.transform.position;
-                    effectP.origin = player.transform.position;
-                    effectP.scale = tunetoplay[currentnote].NoteScale;
-                    EffectNetwork.Send(effectP);
-                }
-                else
-                {
-                    effectS.worldPos = player.transform.position;
-                    effectS.origin = player.transform.position;
-                    effectS.scale = tunetoplay[currentnote].NoteScale;
-                    EffectNetwork.Send(effectS);
-                }
-                currentnote++;
-                if (currentnote >= tunetoplay.Count)
-                    currentnote = 0;
-                Invoke("PlayNote", tunetoplay[currentnote].Delay);
-            }
+
             public void StartAttackingEntity(BaseCombatEntity entity)
             {
                 if (locomotion.attackEntity != null && UnityEngine.Random.Range(0f, 1f) < 0.75f) return;
@@ -1070,7 +1069,6 @@ namespace Oxide.Plugins
             public float damageInterval;
             public float attackDistance;
             public float maxDistance;
-            public string minstrel;
             public bool hostile;
             public float speed;
             public bool stopandtalk;
@@ -1138,7 +1136,6 @@ namespace Oxide.Plugins
                     lootable = lootable,
                     defend = defend,
                     damageInterval = damageInterval,
-                    minstrel = minstrel,
                     message_hello = message_hello?.ToList(),
                     message_bye = message_bye?.ToList(),
                     message_use = message_use?.ToList(),
@@ -1266,38 +1263,6 @@ namespace Oxide.Plugins
                 humannpcs[thenpc.userid] = thenpc;
         }
 
-        public class TuneNote
-        {
-            public float NoteScale, Delay;
-            public bool Pluck;
-            public TuneNote()
-            {
-            }
-        }
-
-        private static void GetTune(HumanPlayer hp)
-        {
-            var tune = Interface.Oxide.CallHook("getTune", hp.info.minstrel);
-            if (tune == null)
-            {
-                hp.CancelInvoke("PlayTune");
-                return;
-            }
-            var newtune = new List<TuneNote>();
-            foreach (var note in (List<object>)tune)
-            {
-                var newnote = new TuneNote();
-                foreach (var pair in (Dictionary<string, object>)note)
-                {
-                    if (pair.Key == "NoteScale") newnote.NoteScale = Convert.ToSingle(pair.Value);
-                    if (pair.Key == "Delay") newnote.Delay = Convert.ToSingle(pair.Value);
-                    if (pair.Key == "Pluck") newnote.Pluck = Convert.ToBoolean(pair.Value);
-                }
-                newtune.Add(newnote);
-            }
-            hp.tunetoplay = newtune;
-        }
-
         //////////////////////////////////////////////////////
         ///  Oxide Hooks
         //////////////////////////////////////////////////////
@@ -1347,14 +1312,18 @@ namespace Oxide.Plugins
         private void OnPlayerInput(BasePlayer player, InputState input)
         {
             if (!input.WasJustPressed(BUTTON.USE)) return;
-            //Interface.Oxide.LogInfo("Use pressed: {0}", player.displayName);
+#if DEBUG
+            Interface.Oxide.LogInfo("Use pressed: {0}", player.displayName);
+#endif
             Quaternion currentRot;
             TryGetPlayerView(player, out currentRot);
             var hitpoints = Physics.RaycastAll(new Ray(player.transform.position + eyesPosition, currentRot * Vector3.forward), 5f, playerLayer);
             Array.Sort(hitpoints, (a, b) => a.distance == b.distance ? 0 : a.distance > b.distance ? 1 : -1);
             for (var i = 0; i < hitpoints.Length; i++)
             {
-                //Interface.Oxide.LogInfo("Raycast: {0}", hitinfo.collider.name);
+#if DEBUG
+                Interface.Oxide.LogInfo("Raycast: {0}", hitpoints[i].collider.name);
+#endif
                 var humanPlayer = hitpoints[i].collider.GetComponentInParent<HumanPlayer>();
                 if (humanPlayer != null)
                 {
@@ -1677,16 +1646,52 @@ namespace Oxide.Plugins
 
         private static bool CanSee(HumanPlayer npc, BaseEntity target)
         {
+#if DEBUG
+            Interface.Oxide.LogInfo($"CanSee(): {npc.transform.position} looking at {target.transform.position}");
+#endif
             var source = npc.player;
             var weapon = source.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
             var pos = source.transform.position + source.GetOffset();
-            if (weapon?.MuzzlePoint != null)
+            if(weapon?.MuzzlePoint != null)
+            {
                 pos += Quaternion.LookRotation(target.transform.position - source.transform.position) * weapon.MuzzlePoint.position;
-            RaycastHit raycastHit;
-            return Vector3.Distance(source.transform.position, target.transform.position) < 0.75
-                || Physics.SphereCast(new Ray(pos, (target.transform.position + source.GetOffset(true) - pos).normalized), .5f, out raycastHit, float.MaxValue, Physics.AllLayers)
-                && raycastHit.GetCollider().GetComponent<BaseCombatEntity>() == target;
-            //return !Physics.Linecast(pos, target.transform.position + source.GetOffset(true), blockshootLayer);
+#if DEBUG
+                Interface.Oxide.LogInfo($"CanSee(): MuzzlePoint NULL");
+#endif
+            }
+            else
+            {
+#if DEBUG
+                Interface.Oxide.LogInfo($"CanSee(): MuzzlePoint NOT null");
+#endif
+            }
+
+            bool ontop = Vector3.Distance(source.transform.position, target.transform.position) < .75; // ON TOP OF THEM
+            Collider[] sphere = Physics.OverlapSphere(pos, float.MaxValue, Physics.AllLayers); // Inside a sphere from us out max distance
+            foreach(var ent in sphere)
+            {
+                if(ent.name.Contains("player"))
+                {
+#if DEBUG
+                    Interface.Oxide.LogInfo($"CanSee(): Got 'im!");
+#endif
+                    npc.LookTowards(target.transform.position);
+                    return true;
+                }
+            }
+            if(ontop)
+            {
+#if DEBUG
+                Interface.Oxide.LogInfo($"CanSee(): On 'im!");
+#endif
+                npc.LookTowards(target.transform.position);
+                return true;
+            }
+
+#if DEBUG
+            Interface.Oxide.LogInfo($"CanSee(): NOPE");
+#endif
+            return false;
         }
 
         private static string GetRandomMessage(List<string> messagelist) => messagelist[GetRandom(0, messagelist.Count)];
@@ -1905,7 +1910,6 @@ namespace Oxide.Plugins
                 SendReply(player, "<color=#81F781>/npc kit</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"KitName\" </color>=> <color=#D8D8D8>To set the kit of this NPC, requires the Kit plugin</color>");
                 SendReply(player, "<color=#81F781>/npc lootable</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To set it if the NPC corpse is lootable or not</color>");
                 SendReply(player, "<color=#81F781>/npc maxdistance</color> <color=#F2F5A9>XXX </color>=><color=#D8D8D8> Max distance from the spawn point that the NPC can run from (while attacking a player)</color>");
-                SendReply(player, "<color=#81F781>/npc minstrel</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"TuneName\" </color>=> <color=#D8D8D8>To set tunes to play by the NPC.</color>");
                 SendReply(player, "<color=#81F781>/npc name</color> <color=#F2F5A9>\"THE NAME\"</color> =><color=#D8D8D8> To set a name to the NPC</color>");
                 SendReply(player, "<color=#81F781>/npc radius</color> <color=#F2F5A9>XXX</color> =><color=#D8D8D8> Radius of which the NPC will detect the player</color>");
                 SendReply(player, "<color=#81F781>/npc respawn</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To set it to respawn on death after XX seconds, default is instant respawn</color>");
@@ -1999,10 +2003,6 @@ namespace Oxide.Plugins
                     case "waypoints":
                     case "waypoint":
                         message = string.IsNullOrEmpty(npcEditor.targetNPC.info.waypoint) ? "No waypoints set for this NPC yet" : $"This NPC waypoints are: {npcEditor.targetNPC.info.waypoint}";
-                        break;
-
-                    case "minstrel":
-                        message = string.IsNullOrEmpty(npcEditor.targetNPC.info.minstrel) ? "No tune set for this NPC yet" : $"This NPC Tune is: {npcEditor.targetNPC.info.minstrel}";
                         break;
 
                     case "kit":
@@ -2157,10 +2157,6 @@ namespace Oxide.Plugins
                         return;
                     }
                     else npcEditor.targetNPC.info.waypoint = name;
-                    break;
-
-                case "minstrel":
-                    npcEditor.targetNPC.info.minstrel = args[1];
                     break;
 
                 case "kit":
