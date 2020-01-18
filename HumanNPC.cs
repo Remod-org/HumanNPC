@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.22", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.23", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -795,6 +795,15 @@ namespace Oxide.Plugins
                 player.health = info.health;
             }
 
+            public void Evade()
+            {
+#if DEBUG
+                Interface.Oxide.LogInfo("Evading...");
+#endif
+                Vector3 evade = new Vector3(UnityEngine.Random.Range(-2f, 2f), 0f, UnityEngine.Random.Range(-2f, 2f));
+                player.MovePosition(player.transform.position + evade);
+            }
+
             public void AllowMove()
             {
                 locomotion?.Enable();
@@ -1361,11 +1370,16 @@ namespace Oxide.Plugins
             var humanPlayer = entity.GetComponent<HumanPlayer>();
             if (humanPlayer != null)
             {
-                if (hitinfo.Initiator is BaseCombatEntity && !(hitinfo.Initiator is Barricade) && humanPlayer.info.defend) humanPlayer.StartAttackingEntity((BaseCombatEntity)hitinfo.Initiator);
+                if (hitinfo.Initiator is BaseCombatEntity && !(hitinfo.Initiator is Barricade) && humanPlayer.info.defend)
+                {
+                    humanPlayer.StartAttackingEntity((BaseCombatEntity)hitinfo.Initiator);
+                }
                 if (humanPlayer.info.message_hurt != null && humanPlayer.info.message_hurt.Count != 0)
                 {
                     if (hitinfo.InitiatorPlayer != null)
+                    {
                         SendMessage(humanPlayer, hitinfo.InitiatorPlayer, GetRandomMessage(humanPlayer.info.message_hurt));
+                    }
                 }
                 Interface.Oxide.CallHook("OnHitNPC", entity.GetComponent<BaseCombatEntity>(), hitinfo);
                 if (humanPlayer.info.invulnerability)
@@ -1375,7 +1389,10 @@ namespace Oxide.Plugins
                     hitinfo.HitMaterial = 0;
                 }
                 else
+                {
                     humanPlayer.protection.Scale(hitinfo.damageTypes);
+                }
+                //humanPlayer.Evade();
             }
         }
 
@@ -1672,22 +1689,22 @@ namespace Oxide.Plugins
 #endif
             }
 
-            if(Vector3.Distance(source.transform.position, target.transform.position) < .75) // ON TOP OF THEM
+            if(Vector3.Distance(source.transform.position, target.transform.position) <  npc.info.damageDistance)
             {
 #if DEBUG
-                Interface.Oxide.LogInfo($"CanSee(): On 'im!");
+                Interface.Oxide.LogInfo($"CanSee(): In range!");
 #endif
+                npc.LookTowards(target.transform.position);
                 return true;
             }
             List<BasePlayer> nearPlayers = new List<BasePlayer>();
-            //Vis.Entities<BasePlayer>(pos, float.MaxValue, nearPlayers);
-            Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers);
+            Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers, 17);
             foreach (var player in nearPlayers)
             {
                 if (player == target)
                 {
 #if DEBUG
-                    Interface.Oxide.LogInfo($"CanSee(): Got 'im!");
+                    Interface.Oxide.LogInfo($"CanSee(): I can see them!");
 #endif
                     npc.LookTowards(target.transform.position);
                     return true;
