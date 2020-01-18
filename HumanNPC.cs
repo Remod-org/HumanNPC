@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.21", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic", "0.3.22", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -184,7 +184,6 @@ namespace Oxide.Plugins
 
             private float startedReload = 0f;
             private bool reloading = false;
-
             public bool returning = false;
 
             public BaseCombatEntity attackEntity = null;
@@ -311,6 +310,7 @@ namespace Oxide.Plugins
             private void GetNextPath()
             {
                 if (npc == null) npc = GetComponent<HumanPlayer>();
+
                 LastPos = Vector3.zero;
                 if (cachedWaypoints == null)
                 {
@@ -489,10 +489,18 @@ namespace Oxide.Plugins
 
                 if (temppathFinding == null)
                 {
-                    if (pathFinding == null || pathFinding.Count == 0)
+                    if(pathFinding == null || pathFinding.Count == 0)
+                    {
                         noPath++;
-                    else noPath = 0;
-                    if (noPath < 5) Invoke("PathFinding", 2);
+                    }
+                    else
+                    {
+                        noPath = 0;
+                    }
+                    if(noPath < 5)
+                    {
+                        Invoke("PathFinding", 2);
+                    }
                     else if (returning)
                     {
                         returning = false;
@@ -1226,14 +1234,18 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
-            foreach (BasePlayer player in Resources.FindObjectsOfTypeAll<BasePlayer>())
+            var HumanNPCMono = UnityEngine.Object.FindObjectsOfType<HumanPlayer>();
+            foreach (var mono in HumanNPCMono)
             {
-                if (player.userID >= 76560000000000000L || player.userID <= 0L || player.IsDestroyed) continue;
-                player.KillMessage();
+                PrintWarning($"Deleting {mono.info.displayName} ({mono.info.userid})");
+                mono.GetComponent<BasePlayer>().Kill();
             }
+
             var npcEditors = UnityEngine.Object.FindObjectsOfType<NPCEditor>();
             foreach (var gameObj in npcEditors)
+            {
                 UnityEngine.Object.Destroy(gameObj);
+            }
             SaveData();
         }
 
@@ -1467,13 +1479,6 @@ namespace Oxide.Plugins
                 npcspawned.Add(pair.Key);
                 SpawnOrRefresh(pair.Key);
             }
-            foreach (BasePlayer player in Resources.FindObjectsOfTypeAll<BasePlayer>())
-            {
-//                if (player.userID >= 76560000000000000L || player.userID <= 0L || npcspawned.Contains(player.userID) || player.IsDestroyed) continue;
-                if (player.userID >= 76560000000000000L || player.userID <= 0L || npcspawned.Contains(player.userID) || player.IsDestroyed || (player.userID.ToString() == player.displayName)) continue;
-                player.KillMessage();
-                PrintWarning($"Detected a HumanNPC with no data or disabled, deleting him: {player.userID} {player.displayName}");
-            }
         }
 
         private void SpawnOrRefresh(ulong userid)
@@ -1502,7 +1507,7 @@ namespace Oxide.Plugins
             cache[userid] = humanPlayer;
             UpdateInventory(humanPlayer);
             Interface.Oxide.CallHook("OnNPCRespawn", newPlayer);
-            Puts("Spawned NPC: " + userid);
+            Puts($"Spawned NPC: {userid}");
         }
 
         private void UpdateInventory(HumanPlayer humanPlayer)
