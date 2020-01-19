@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920", "0.3.26", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920", "0.3.27", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -614,7 +614,7 @@ namespace Oxide.Plugins
                 Interface.Oxide.LogInfo($"ProcessFollow() distance {c_followDistance.ToString()}");
 #endif
                 //if (c_followDistance > 0)// && Vector3.Distance(LastPos, npc.player.transform.position) < followDistance)// && noPath < 5)
-				if (c_followDistance > followDistance && Vector3.Distance(LastPos, npc.player.transform.position) < npc.info.maxDistance && noPath < 5)
+                if (c_followDistance > followDistance && Vector3.Distance(LastPos, npc.player.transform.position) < npc.info.maxDistance && noPath < 5)
                 {
                     Move(npc.player.transform.position, npc.info.speed);
                 }
@@ -1948,8 +1948,8 @@ namespace Oxide.Plugins
 #endif
             }
 
-			//if(Physics.Linecast(source.transform.position + new Vector3(0, 1.6f, 0), target.transform.position + new Vector3(0, 1.6f, 0), obstructionMask))
-			if(Physics.Linecast(source.transform.position, target.transform.position, obstructionMask))
+            //if(Physics.Linecast(source.transform.position + new Vector3(0, 1.6f, 0), target.transform.position + new Vector3(0, 1.6f, 0), obstructionMask))
+            if(Physics.Linecast(source.transform.position, target.transform.position, obstructionMask))
             {
 #if DEBUG
                 Interface.Oxide.LogInfo($"CanSee(): Blocked by some obstruction.");
@@ -2716,6 +2716,8 @@ namespace Oxide.Plugins
         // NPC HOOKS:
         // will call ALL plugins
         //////////////////////////////////////////////////////
+
+        private List<ulong> HumanNPCs()=>humannpcs.Keys.ToList<ulong>();
 
         //////////////////////////////////////////////////////
         /// OnHitNPC(BasePlayer npc, HitInfo hinfo)
