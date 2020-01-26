@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920", "0.3.28", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920", "0.3.29", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -31,6 +31,13 @@ namespace Oxide.Plugins
         private static int groundLayer;
 
         private Hash<ulong, HumanNPCInfo> humannpcs = new Hash<ulong, HumanNPCInfo>();
+
+        // Nicodemus
+        private Hash<ulong, HumanNPCTeamInfo> humannpcteams = new Hash<ulong, HumanNPCTeamInfo>();
+        //private FoFLookup fofLookup = new FoFLookup(); //constructor is empty, don't generate yet, wait for all the NPCTeamInfo to be populated first!
+        public static readonly Dictionary<HumanNPCAlignment, string> FoFEnumToString = new Dictionary<HumanNPCAlignment, string>();
+        public static readonly Dictionary<string, HumanNPCAlignment> FoFStringToEnum = new Dictionary<string, HumanNPCAlignment>();
+        // Nicodemus
 
         static int playerMask = LayerMask.GetMask("Player (Server)");
         //static int obstructionMask = LayerMask.GetMask(new[] { "Player (Server)", "Construction", "Deployed", "Clutter" });
@@ -52,6 +59,8 @@ namespace Oxide.Plugins
         private class StoredData
         {
             public HashSet<HumanNPCInfo> HumanNPCs = new HashSet<HumanNPCInfo>();
+            // Nicodemus
+            public HashSet<HumanNPCTeamInfo> HumanNPCTeams = new HashSet<HumanNPCTeamInfo>();
         }
 
         public class WaypointInfo
@@ -1583,6 +1592,589 @@ namespace Oxide.Plugins
             }
         }
 
+        // Nicodemus
+        public class HumanNPCTeamMember
+        {
+            public ulong userid;
+            public HumanNPCTeamMember(ulong userid)
+            {
+                this.userid = userid;
+            }
+
+            public bool IsNPC()
+            {
+                return !(this.userid >= 76560000000000000L || this.userid <= 0L);
+            }
+
+            public string TryGetMemberName()
+            {
+                string foundName = null;
+
+                if (IsNPC())
+                {
+                    //check if we can grab a HumanPlayer
+                    HumanPlayer maybeHumanPlayer = TryGetHumanPlayer();
+
+                    if (maybeHumanPlayer != null)
+                    {
+                        foundName = maybeHumanPlayer.info.displayName;
+                    }
+                }
+                else
+                {
+                    //check if we can grab a BasePlayer
+                    BasePlayer maybeBasePlayer = TryGetBasePlayer();
+
+                    if (maybeBasePlayer != null)
+                    {
+                        foundName = maybeBasePlayer.displayName;
+                    }
+                }
+
+                return foundName;
+            }
+            public HumanPlayer TryGetHumanPlayer() //because team members can be either real humans or npcs (counter-intuitively named HumanPlayers)
+            {
+                HumanPlayer foundHumanPlayer = null;
+
+                if (IsNPC())
+                {
+                    //okay, it is an NPC based on the userid, let's see if it exists/is accessible
+
+                    foreach (HumanPlayer maybeHumanPlayer in UnityEngine.Object.FindObjectsOfType<HumanPlayer>())
+                    {
+                        if (maybeHumanPlayer.info.userid == this.userid)
+                        {
+                            foundHumanPlayer = maybeHumanPlayer;
+                            break;
+                        }
+                    }
+                } //if it's not an NPC, you get a null.
+                return foundHumanPlayer;
+            }
+
+            public BasePlayer TryGetBasePlayer()
+            {
+                BasePlayer foundBasePlayer = null;
+
+                if (IsNPC())
+                {
+                    HumanPlayer maybeHumanPlayer = TryGetHumanPlayer();
+
+                    if (maybeHumanPlayer != null)
+                    {
+                        foundBasePlayer = maybeHumanPlayer.GetComponent<BasePlayer>();
+                    }
+                }
+                else
+                {
+                    foreach (BasePlayer maybeBasePlayer in UnityEngine.Object.FindObjectsOfType<BasePlayer>())
+                    {
+                        if (maybeBasePlayer.userID == this.userid)
+                        {
+                            foundBasePlayer = maybeBasePlayer;
+                            break;
+                        }
+                    }
+                }
+
+                return foundBasePlayer;
+            }
+        }
+
+        public Hash<ulong, HumanNPCTeamInfo> GetAllTeamsContainingUserID(ulong userid)
+        {
+            Hash<ulong, HumanNPCTeamInfo> foundTeams = new Hash<ulong, HumanNPCTeamInfo>();
+
+            foreach (var team in humannpcteams)
+            {
+                if (team.Value.members.ContainsKey(userid))
+                {
+                    foundTeams.Add(team);
+                }
+            }
+
+            return foundTeams;
+        }
+
+        public bool CheckIfUsersShareTeam(ulong userid1, ulong userid2)
+        {
+            //there's no point in checking if the users actually exist here.
+            //we're just comparing numbers in hash sets.
+
+            var teams1 = GetAllTeamsContainingUserID(userid1);
+            var teams2 = GetAllTeamsContainingUserID(userid2);
+
+            //check if the two hash sets share at least 1 member
+            bool overlap = false;
+
+            foreach (var current_team in teams1)
+            {
+                if (teams2.ContainsKey(current_team.Key))
+                {
+                    overlap = true;
+                    break;
+                }
+            }
+
+            return overlap;
+        }
+        public enum HumanNPCAlignment
+        {
+            Foe,
+            Neutral,
+            Friend
+        }
+
+        //This is the top-level method for deciding whether you consider someone a friend, foe, or neutral.
+        //Remember, relationships can be asymmetrical, so the order of the arguments matters.
+
+        public HumanNPCAlignment GetAlignment(ulong userid1, ulong userid2)
+        {
+            //if you're neither a friend or a foe, you're neutral
+            return HumanNPCAlignment.Neutral;
+        }
+
+        //This is an intermediary cache-like structure for fast lookup.
+        //because team data doesn't change that often, there's no need for a bunch of foreach loops
+        //every time you want to check if two players are friends, enemies or neutral.
+        //so for the sake of performance, for every player there will exist a list
+        //of friends and enemies
+
+        //This data is not saved, it's generated on plugin load and every time team information changes
+        //
+        //Considering players/teams friends/foes is asymmetrical for maximum flexibility.
+        //It means that, for example, 1 NPC will consider an entire team their friends and not attack them
+        //and try to call for help within its alarm radius (if set) - while they consider him all an enemy and
+        //will attack on sight.
+        //When an NPC alarms other NPCs within their radius, the alarm request is only "heard" by those NPCs
+        //that the calling NPC considers friends or neutral (no relationship info). And it's only "answered" when the responding NPC considers
+        //the calling NPC friend.
+        //
+
+        //alignment set to "Neutral" is the same as having no alignment entry (applies to team/user)
+        public static Dictionary<Tuple<ulong, ulong>, HumanNPCAlignment> relationshipCache;
+        public static Dictionary<Tuple<ulong, ulong>, bool> conflictCache;
+
+        //N^3*(2N) computational complexity. But totally worth it considered time saved every time you need to look up whether you should attack a particular player/NPC or not.
+        //Remember, this only gets regenerated when something about team data changes (which should not be very often).
+        //
+        //I wonder if it's possible to delegate that to a separate thread, though? Just in case. Could display a message, like "Team data regenerating, please wait..." or w/e
+
+        public HumanNPCAlignment GetRelationshipFromCache(ulong whoUserID, ulong whomUserID)
+        {
+            HumanNPCAlignment relationship = HumanNPCAlignment.Neutral;
+            Tuple<ulong, ulong> relationshipTuple = new Tuple<ulong, ulong>(whoUserID, whomUserID);
+
+            if (relationshipCache.ContainsKey(relationshipTuple)) //that means it's either friend or foe
+            {
+                relationship = relationshipCache[relationshipTuple];
+            }
+
+            return relationship;
+        }
+
+        public void GenerateRelationshipCache()
+        {
+            PrintWarning("Generating relationship cache... ");
+            //step 0: clear the caches
+            relationshipCache = new Dictionary<Tuple<ulong, ulong>, HumanNPCAlignment>();
+            conflictCache = new Dictionary<Tuple<ulong, ulong>, bool>();
+
+            //create a temporary Hashes: goodBois, badBois and conflictedBois where the first index is the team id and the second - a user/NPC id
+            Dictionary<Tuple<ulong, ulong>, bool> goodBois = new Dictionary<Tuple<ulong, ulong>, bool>();
+            Dictionary<Tuple<ulong, ulong>, bool> badBois = new Dictionary<Tuple<ulong, ulong>, bool>();
+            Dictionary<Tuple<ulong, ulong>, bool> conflictedBois = new Dictionary<Tuple<ulong, ulong>, bool>();
+
+            //Step 1: all all the teammates to their respective teams' goodBois.
+            PrintWarning("[PHASE 1] Populating all the teams' friend lists with team members IDs");
+            foreach (var team in humannpcteams)
+            {
+                PrintWarning($"          Processing team {team.Key}");
+                foreach (var teamMember in team.Value.members)
+                {
+                    PrintWarning($"             Adding user {teamMember.Key} to the friend list of the team {team.Key}");
+                    //Test if this one works, too, just curious
+                    //goodBois.Add(Tuple.Create(team.Key, teamMember.Key), true);
+
+                    goodBois.Add(new Tuple<ulong, ulong>(team.Key, teamMember.Key), true);
+                }
+            }
+
+            //Step 2: get all the possible friend, foe and conflicted user ids for that particular team.
+            PrintWarning("[PHASE 2] Populating every team's friend and foe lists according to that team's alignments");
+            {
+                foreach (var team in humannpcteams)
+                {
+                    PrintWarning($"           Processing team {team.Key}");
+                    ulong teamId = team.Key;
+
+                    if (team.Value.TeamAlignmentCount() == 0)
+                    {
+                        PrintWarning($"             Team {team.Key} has no alignments with other teams, doing nothing");
+                    }
+
+                    foreach (var teamAlignment in team.Value.teamAlignments)
+                    {
+                        string thisAlignment = FoFEnumToString[teamAlignment.Value];
+                        PrintWarning($"             Processing a {thisAlignment} alignment of the team {team.Key} with team {teamAlignment.Key}");
+                        ulong otherTeamId = teamAlignment.Key;
+
+                        //get all the members of other team - if it exists! what if the entry exists, but the team has been deleted?
+                        if (FindTeamNameByID(otherTeamId) != null)
+                        {
+                            PrintWarning($"             Team {otherTeamId} has been found, processing its members");
+                            foreach (var otherTeamMember in humannpcteams[otherTeamId].members)
+                            {
+                                ulong otherTeamMemberId = otherTeamMember.Value.userid;
+                                PrintWarning($"                 Processing member {otherTeamMemberId}");
+                                var relationshipTupleKey = new Tuple<ulong, ulong>(teamId, otherTeamMemberId); //to identify the relationship between the team considering and that particular member
+                                //check if it exists in conflictedBois for that team
+                                if (conflictedBois.ContainsKey(relationshipTupleKey))
+                                {
+                                    //for now, do nothing
+                                    PrintWarning($"                     Member {otherTeamMemberId} is already on the conflict list for the team {team.Key}, doing nothing");
+
+                                }
+                                else
+                                {
+                                    PrintWarning($"                     {team.Key} has no conflicted entries for {otherTeamMemberId}, continuing");
+                                    //so far no conflicts. Good.
+                                    //now check if the following situation is true:
+                                    //if there exists an entry in goodBois for that relationship tuple key, mark goodBoiExists as true.
+                                    //if there's an entry in badBois, mark badBoiExists as true.
+                                    //if both are true, mark this for immediate conflict. This situation shouldn't have occured in first place
+                                    //and if it ever happens, it is highly likely the server admin has tampered with stored data JSON by hand.
+
+                                    bool goodBoiExists = (goodBois.ContainsKey(relationshipTupleKey));
+                                    bool badBoiExists = (badBois.ContainsKey(relationshipTupleKey));
+
+                                    if (goodBoiExists && badBoiExists) //again, I can't stress how ridiculously wrong idiot-proofing must've gone if this ever turns out to be true!
+                                    {
+                                        goodBois.Remove(relationshipTupleKey);
+                                        badBois.Remove(relationshipTupleKey);
+
+                                        conflictedBois.Add(relationshipTupleKey, true); //this will neutralise the relationship again
+                                        PrintWarning($"[DISASTER]           {otherTeamMemberId} Something very, very wrong has just happened. If you haven't messed with the HumanNPCs.json file, contact the mod creator citing the code \"oopsie 384\".");
+                                    }
+                                    else
+                                    {
+                                        //what if just one of them exists,then?
+                                        if (goodBoiExists && !badBoiExists)
+                                        {
+                                            if (teamAlignment.Value.Equals(HumanNPCAlignment.Friend))
+                                            {
+                                                //we do nothing here because it wouldn't change anything: you're a friend and you're requesting the same
+                                                PrintWarning($"                     Member {otherTeamMemberId} is already on the friend list of the team {team.Key}, doing nothing");
+                                            }
+                                            else
+                                            {
+                                                //no more goodboi. this is now a conflict.
+                                                goodBois.Remove(relationshipTupleKey);
+                                                conflictedBois.Add(relationshipTupleKey, true);
+                                                PrintWarning($"                    Conflict found: team {teamId} considers user {otherTeamMemberId} friendly, but membership in team {otherTeamId} is trying to set it to a foe. Adding to the conflict list (no longer on the friend list from now on)");
+                                            }
+
+                                        }
+                                        else if (!goodBoiExists && badBoiExists) //maybe the other one?
+                                        {
+                                            if (teamAlignment.Value.Equals(HumanNPCAlignment.Foe))
+                                            {
+                                                PrintWarning($"                     Member {otherTeamMemberId} is already on the foe list of the team {team.Key}, doing nothing");
+                                            }
+                                            else
+                                            {
+                                                //no more badboi. this is now a conflict.
+                                                badBois.Remove(relationshipTupleKey);
+                                                conflictedBois.Add(relationshipTupleKey, true);
+                                                PrintWarning($"                    Conflict found: team {teamId} considers user {otherTeamMemberId} a foe, but membership in team {otherTeamId} is trying to set it to friendly. Adding to the conflict list (no longer on the foe list from now on)");
+                                            }
+
+                                        }
+                                        else //none of them exist (neutral) so far. make an appropriate entry, according to what the alignment is.
+                                        {
+                                            PrintWarning($"                     {team.Key} has no friend or foe entries for {otherTeamMemberId}, continuing");
+                                            if (teamAlignment.Value.Equals(HumanNPCAlignment.Friend))
+                                            {
+                                                goodBois.Add(relationshipTupleKey, true);
+                                                PrintWarning($"                     Adding {otherTeamMemberId} to the friend list of the team {team.Key}.");
+                                            }
+                                            else if (teamAlignment.Value.Equals(HumanNPCAlignment.Foe))
+                                            {
+                                                badBois.Add(relationshipTupleKey, true);
+                                                PrintWarning($"                     Adding {otherTeamMemberId} to the foe list of the team {team.Key}.");
+                                            }
+                                            else
+                                            {
+                                                //it's something else than 0 (Friend) or 2 (Foe), so just do nothing. This doesn't happen "in nature".
+                                                //Someone tampered with stored data JSON, maybe?
+                                                PrintWarning($"                     Found alignment other than \"friend\" or \"foe\", doing nothing");
+                                            }
+
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            //Display conflicted bois now
+            if (conflictedBois.Count == 0)
+            {
+                PrintWarning("No conflicts found.");
+            }
+
+            //Step 3: Now apply group friendship and animosities to individual users. Iterate through all team relationships.
+
+            //Good bois go first, not because it matters (they're mutually exclusive with badbois)
+            //but because they're good bois and they deserve to go first.
+
+            PrintWarning("[PHASE 3] Applying the friend and foe lists to the teams' members");
+
+            foreach (KeyValuePair<Tuple<ulong, ulong>, bool> teamFriendshipWithUser in goodBois)
+            {
+                var teamId = teamFriendshipWithUser.Key.Item1;
+                var userTwoId = teamFriendshipWithUser.Key.Item2;
+                PrintWarning($"          Processing friendship of the team {teamId} with the user {userTwoId} ");
+                //iterate through that particular team...
+                foreach (var userOne in humannpcteams[teamId].members)
+                {
+                    var userOneId = userOne.Key;
+                    //FINALLY. You've got both keys, the value is always true... DO IT
+                    PrintWarning($"             Processing team member {userOneId}");
+                    if (userOneId != userTwoId) //don't add yourself, you're always neutral towards yourself
+                    {
+                        var relationshipTuple = new Tuple<ulong, ulong>(userOneId, userTwoId);
+
+                        //check for existing conflicts first
+
+                        if (conflictCache.ContainsKey(relationshipTuple))
+                        {
+                            PrintWarning($"             There already exists a conflict between {userOneId} and {userTwoId}, doing nothing");
+                        }
+                        else
+                        {
+                            if (!relationshipCache.ContainsKey(relationshipTuple))
+                            {
+                                relationshipCache.Add(relationshipTuple, HumanNPCAlignment.Friend);
+                                PrintWarning($"             {userOneId} will now consider {userTwoId} a friend");
+                            }
+                            else
+                            {
+                                //check what sort of relationship is there. if it's still "friend", do nothing, but if it's "foe",
+                                //we have a conflict. Add that relationship to conflicted so it's ignored from now on
+                                if (relationshipCache[relationshipTuple].Equals(HumanNPCAlignment.Friend))
+                                {
+                                    //it's fine, was a friend, gonna stay a friend, do nothing
+                                    PrintWarning($"            {userOneId} already considers {userTwoId} a friend, doing nothing");
+                                }
+                                else
+                                {
+                                    //new conflict discovered. don't add to friends, add to conflicts, remove from foes
+                                    conflictCache.Add(relationshipTuple, true);
+                                    relationshipCache.Remove(relationshipTuple);
+
+                                    PrintWarning($"[CONFLICT]  {userOneId} considers {userTwoId} a foe, but {userTwoId} is on the friend list of team {teamId}. Relationship between the two users set to neutral.");
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        PrintWarning($"             The two user ids are the same: {userOneId} and {userTwoId}, doing nothing");
+                    }
+                }
+            }
+
+            //same with bad bois
+            foreach (KeyValuePair<Tuple<ulong, ulong>, bool> teamFriendshipWithUser in badBois)
+            {
+                var teamId = teamFriendshipWithUser.Key.Item1;
+                var userTwoId = teamFriendshipWithUser.Key.Item2;
+                PrintWarning($"          Processing animosity of the team {teamId} with the user {userTwoId} ");
+                //iterate through that particular team...
+                foreach (var userOne in humannpcteams[teamId].members)
+                {
+                    var userOneId = userOne.Key;
+                    //FINALLY. You've got both keys, the value is always true... DO IT
+                    PrintWarning($"             Processing team member {userOneId}");
+                    if (userOneId != userTwoId) //don't add yourself, you're always neutral towards yourself
+                    {
+                        var relationshipTuple = new Tuple<ulong, ulong>(userOneId, userTwoId);
+
+                        //check for existing conflicts first
+
+                        if (conflictCache.ContainsKey(relationshipTuple))
+                        {
+                            PrintWarning($"             There already exists a conflict between {userOneId} and {userTwoId}, doing nothing");
+                        }
+                        else
+                        {
+                            if (!relationshipCache.ContainsKey(relationshipTuple))
+                            {
+                                relationshipCache.Add(relationshipTuple, HumanNPCAlignment.Foe);
+                                PrintWarning($"             {userOneId} will now consider {userTwoId} a foe");
+                            }
+                            else
+                            {
+                                //check what sort of relationship is there. if it's still "friend", do nothing, but if it's "foe",
+                                //we have a conflict. Add that relationship to conflicted so it's ignored from now on
+                                if (relationshipCache[relationshipTuple].Equals(HumanNPCAlignment.Foe))
+                                {
+                                    //it's fine, was a friend, gonna stay a friend, do nothing
+                                    PrintWarning($"            {userOneId} already considers {userTwoId} a foe, doing nothing");
+                                }
+                                else
+                                {
+                                    //new conflict discovered. don't add to friends, add to conflicts, remove from foes
+                                    conflictCache.Add(relationshipTuple, true);
+                                    relationshipCache.Remove(relationshipTuple);
+
+                                    PrintWarning($"[CONFLICT]  {userOneId} considers {userTwoId} a friend, but {userTwoId} is on the foe list of team {teamId}. Relationship between the two users set to neutral.");
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        PrintWarning($"             The two user ids are the same: {userOneId} and {userTwoId}, doing nothing");
+                    }
+                }
+            }
+        }
+
+        // Nicodemus
+        public class HumanNPCTeamInfo
+        {
+            public ulong teamid;
+            public string teamName;
+            //this is going to be Oxide.Plugins.Hash: because HumanNPCTeamMember can have additional properties (like isAdmin or w/e)
+            //I'm trying to future-proof it
+            public Hash<ulong, HumanNPCTeamMember> members;
+            public Hash<ulong, HumanNPCAlignment> teamAlignments;
+
+            public HumanNPCTeamInfo(string teamName)
+            {
+                this.teamName = teamName;
+                this.teamid = (ulong)UnityEngine.Random.Range(1, 2147483647); //0 is used when no team is found
+
+                this.members = new Hash<ulong, HumanNPCTeamMember>();
+                this.teamAlignments = new Hash<ulong, HumanNPCAlignment>();
+            }
+
+            public bool TeamAlignmentSet(ulong teamid, HumanNPCAlignment alignment)
+            {
+                bool success = false;
+                //Here we're assuming that teamid exists, it's all meaningless numbers until it's cached, anyway.
+                //Check if you're not setting alignment with yourself
+                if (teamid != this.teamid)
+                {
+                    if (alignment.Equals(HumanNPCAlignment.Neutral))
+                    {
+                        //if an entry exists, get rid of it
+                        if (this.teamAlignments.ContainsKey(teamid))
+                        {
+                            this.teamAlignments.Remove(teamid);
+                            success = true;
+                        }
+                    }
+                    else
+                    {
+                        //set the entry
+                        this.teamAlignments[teamid] = alignment;
+                        success = true;
+                    }
+                }
+
+                return success;
+            }
+
+            public HumanNPCAlignment TeamAlignmentGet(ulong teamid)
+            {
+                HumanNPCAlignment alignment = HumanNPCAlignment.Neutral;
+
+                if (this.teamAlignments.ContainsKey(teamid))
+                {
+                    alignment = this.teamAlignments[teamid];
+                }
+
+                return alignment;
+            }
+
+            public int MemberCount()
+            {
+                int foundMembers = 0;
+                if (this.members != null)
+                    foundMembers = this.members.Count();
+
+                return foundMembers;
+            }
+
+            public int TeamAlignmentCount()
+            {
+                int foundTeamAlignments = 0;
+                if (this.members != null)
+                    foundTeamAlignments = this.teamAlignments.Count();
+
+                return foundTeamAlignments;
+            }
+
+            public BasePlayer MemberAdd(ulong userid)
+            {
+                BasePlayer playerFound = null;
+
+                //we need to check if the player/NPC with that ID exists.
+
+                //first, BasePlayers...
+
+                foreach (BasePlayer player in UnityEngine.Object.FindObjectsOfType<BasePlayer>())
+                {
+                    if (player.userID == userid)
+                    {
+                        playerFound = player;
+
+                        break;
+                    }
+                }
+
+                if (playerFound != null)
+                {
+                    this.members.Add(playerFound.userID, new HumanNPCTeamMember(playerFound.userID));
+                }
+                else
+                {
+                    //okay maybe HumanPlayers?
+                    foreach (HumanPlayer humanplayer in UnityEngine.Object.FindObjectsOfType<HumanPlayer>())
+                    {
+                        var playerComponent = humanplayer.GetComponent<BasePlayer>();
+                        if (humanplayer.info.userid == userid)
+                        {
+                            playerFound = playerComponent;
+                            this.members.Add(playerFound.userID, new HumanNPCTeamMember(playerFound.userID));
+                            break;
+                        }
+                    }
+                }
+
+                return playerFound;
+            }
+
+            public bool MemberRemove(ulong userid)
+            {
+                //we're removing, we don't even care if that player is online, so less checks here tha when adding
+                bool success = false;
+
+                if (this.members.ContainsKey(userid))
+                {
+                    this.members.Remove(userid);
+                    success = true;
+                }
+                return success;
+            }
+        }
+        // Nicodemus
+
         //////////////////////////////////////////////////////
         ///  class HumanNPCInfo
         ///  NPC information that will be saved inside the datafile
@@ -1632,6 +2224,13 @@ namespace Oxide.Plugins
             public List<string> message_kill;
             public Dictionary<DamageType, float> protections = new Dictionary<DamageType, float>();
 
+            // Nicodemus
+            public bool hostileTowardsArmed;
+            public bool hostileTowardsArmedHard;
+            public bool raiseAlarm;
+            public List<string> message_armed;
+            public List<string> message_alarm;
+
             public HumanNPCInfo(ulong userid, Vector3 position, Quaternion rotation)
             {
                 this.userid = userid;
@@ -1663,6 +2262,11 @@ namespace Oxide.Plugins
                 allowsit = false;
                 allowride = false;
                 damageInterval = 2;
+
+                // Nicodemus
+                hostileTowardsArmed = false;
+                hostileTowardsArmedHard = false;
+                raiseAlarm = false;
 
                 for(var i = 0; i < (int)DamageType.LAST; i++)
                 {
@@ -1708,7 +2312,13 @@ namespace Oxide.Plugins
                     needsAmmo = needsAmmo,
                     hitchance = hitchance,
                     reloadDuration = reloadDuration,
-                    protections = protections?.ToDictionary(p => p.Key, p => p.Value)
+                    protections = protections?.ToDictionary(p => p.Key, p => p.Value),
+                    // Nicodemus
+                    hostileTowardsArmed = hostileTowardsArmed,
+                    hostileTowardsArmedHard = hostileTowardsArmedHard,
+                    raiseAlarm = raiseAlarm,
+                    message_armed = message_armed?.ToList(),
+                    message_alarm = message_alarm?.ToList()
                 };
             }
         }
@@ -1756,6 +2366,15 @@ namespace Oxide.Plugins
             weaponProjectile = new Dictionary<string, BaseProjectile>();
             CheckCfg("Chat", ref chat);
             SaveConfig();
+
+            // Nicodemus
+            FoFEnumToString.Add(HumanNPCAlignment.Foe, "foe");
+            FoFEnumToString.Add(HumanNPCAlignment.Neutral, "neutral");
+            FoFEnumToString.Add(HumanNPCAlignment.Friend, "friend");
+
+            FoFStringToEnum.Add("foe", HumanNPCAlignment.Foe);
+            FoFStringToEnum.Add("neutral", HumanNPCAlignment.Neutral);
+            FoFStringToEnum.Add("friend", HumanNPCAlignment.Friend);
         }
 
         private static bool GetBoolValue(string value)
@@ -1783,6 +2402,14 @@ namespace Oxide.Plugins
             var filter = RustExtension.Filter.ToList();
             filter.Add("Look rotation viewing vector is zero");
             RustExtension.Filter = filter.ToArray();
+
+            //Nicodemus
+            foreach(var theteam in storedData.HumanNPCTeams)
+            {
+                humannpcteams[theteam.teamid] = theteam;
+            }
+
+            GenerateRelationshipCache();
         }
 
         private void Unload()
@@ -1828,6 +2455,13 @@ namespace Oxide.Plugins
             {
                 humannpcs[thenpc.userid] = thenpc;
             }
+            //new stuff
+            foreach (var theteam in storedData.HumanNPCTeams)
+            {
+                humannpcteams[theteam.teamid] = theteam;
+            }
+
+            GenerateRelationshipCache();
         }
 
         //////////////////////////////////////////////////////
@@ -1944,9 +2578,16 @@ namespace Oxide.Plugins
 #if DEBUG
                 Interface.Oxide.LogInfo($"OnEntityTakeDamage(by {entity.name})");
 #endif
+                // Nicodemus
+                //if you're supposed to retaliate against your team members,
+                //check if the initiator is part of the same team
                 if(hitinfo.Initiator is BaseCombatEntity && !(hitinfo.Initiator is Barricade) && humanPlayer.info.defend)
                 {
                     humanPlayer.StartAttackingEntity((BaseCombatEntity)hitinfo.Initiator);
+                    if(humanPlayer.info.raiseAlarm == true)
+                    {
+                        RaiseAlarm((BasePlayer)entity, (BasePlayer)hitinfo.Initiator);
+                    }
                 }
                 if(humanPlayer.info.message_hurt != null && humanPlayer.info.message_hurt.Count != 0)
                 {
@@ -2059,6 +2700,61 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////
         /// End of Oxide Hooks
         //////////////////////////////////////////////////////
+        // Nicodemus
+
+        //can use substrings (Contains instead of Equals), so names with spaces etc should be okay
+        public ulong FindTeamIDByName(string name)
+        {
+            //returns the id of the team or 0 if the team doesn't exist
+            ulong foundId = 0;
+
+            foreach (var pair in humannpcteams) //will return the first found, so in case of teamA and teamB, when using just "team", it will return teamA ID
+            {
+                if (pair.Value.teamName.Contains(name))
+                {
+                    foundId = pair.Value.teamid;
+                    break;
+                }
+            }
+
+            return foundId;
+        }
+
+        public string FindTeamNameByID(ulong teamId)
+        {
+            //will return the name or null if wrong ID
+
+            string foundName = null;
+
+            if (humannpcteams.ContainsKey(teamId))
+            {
+                foundName = humannpcteams[teamId].teamName;
+            }
+
+            return foundName;
+        }
+
+        //sort of reverse wrapper for TeamNameToId, really
+        public ulong AddTeamByName(string name)
+        {
+            //returns newly added teamid or 0 if a team with that name already exists
+            ulong teamId = 0;
+
+            //first, check if the team with that name already exists!
+
+            if (FindTeamIDByName(name) == 0) //0 means no ID by that name found
+            {
+                HumanNPCTeamInfo npcTeamInfo = new HumanNPCTeamInfo(name);
+                teamId = npcTeamInfo.teamid;
+
+                humannpcteams[teamId] = npcTeamInfo;
+                storedData.HumanNPCTeams.Add(npcTeamInfo);
+                save = true;
+            }
+
+            return teamId; //will return 0 on failure to add a team
+        }
+        // Nicodemus
 
         private Dictionary<ulong, HumanPlayer> cache = new Dictionary<ulong, HumanPlayer>();
 
@@ -2094,6 +2790,18 @@ namespace Oxide.Plugins
             foreach(BasePlayer player in allBasePlayer)
             {
                 if(player.userID == userid) return player;
+            }
+            return null;
+        }
+
+        public BasePlayer FindPlayer(string nameOrId)
+        {
+            if (string.IsNullOrEmpty(nameOrId)) return null;
+            var allBasePlayer = Resources.FindObjectsOfTypeAll<BasePlayer>();
+            foreach (var humanplayer in allBasePlayer)
+            {
+                if (!nameOrId.Equals(humanplayer.UserIDString) && !humanplayer.displayName.Contains(nameOrId, CompareOptions.OrdinalIgnoreCase)) continue;
+                return humanplayer;
             }
             return null;
         }
@@ -2378,6 +3086,31 @@ namespace Oxide.Plugins
             return newlist;
         }
 
+        // Nicodemus
+        private string ArgConcat(string[] args, bool withoutFirstElement)
+        {
+            string built = "";
+            if (withoutFirstElement == true)
+            {
+                args = args.Skip(1).ToArray();
+            }
+
+            //this will ensure any argument after "add" goes in the team name separated by spaces
+            for (var t = 0; t < args.Length; t++) //skipping the first argument "add"
+            {
+                if (!args[t].Contains(" ")) //so we don't accidentally put in double spaces or whatever
+                {
+                    if (t > 0) //no space before the first one
+                        built = String.Concat(built, " ");
+
+                    built = String.Concat(built, args[t]);
+                }
+            }
+
+            return built;
+        }
+        // Nicodemus
+
         //////////////////////////////////////////////////////////////////////////////
         /// Chat Commands
         //////////////////////////////////////////////////////////////////////////////
@@ -2426,6 +3159,624 @@ namespace Oxide.Plugins
             var npcEditor = player.gameObject.AddComponent<NPCEditor>();
             npcEditor.targetNPC = humanPlayer;
         }
+
+        // Nicodemus
+        [ChatCommand("npc_team")]
+        private void cmdChatNPCTeam(BasePlayer player, string command, string[] args)
+        {
+            if (!hasAccess(player)) return;
+
+            if (args.Length == 0)
+            {
+                //check if there's any teams
+                if (humannpcteams.Count() == 0)
+                    SendReply(player, "There's currently no teams defined, type /npc_team add [team_name] first!");
+                else
+                {
+                    string plural = (humannpcteams.Count() == 1) ? "" : "s";
+
+                    SendReply(player, $"There's currently {humannpcteams.Count()} team{plural} defined:");
+                    foreach (var theteam in humannpcteams)
+                    {
+                        string plural2 = (theteam.Value.MemberCount() == 1) ? "" : "s";
+                        SendReply(player, $"{theteam.Value.teamid}: {theteam.Value.teamName} ({theteam.Value.MemberCount()} member{plural2})");
+                    }
+                }
+            }
+            else
+            {
+                switch (args[0])
+                {
+                    case "add":
+                        {
+                            if (args.Length > 1)
+                            {
+                                string proposedName = ArgConcat(args, true);
+
+                                ulong newteamid = AddTeamByName(proposedName);
+                                if (newteamid == 0)
+                                {
+                                    SendReply(player, $"Sorry, a team with that name already exists (ID {FindTeamIDByName(proposedName)})");
+                                }
+                                else
+                                {
+                                    SendReply(player, $"Team \"{proposedName}\" added with ID {newteamid}");
+                                    GenerateRelationshipCache();
+                                }
+                            }
+                            else
+                            {
+                                SendReply(player, "Please provide a name for the team! Try /npc_team add [team_name]");
+                            }
+                        }
+                        break;
+                    case "remove":
+                        {
+                            if (args.Length > 1)
+                            {
+                                //first, check if it's a number. If not, then it must be a team name.
+                                ulong requestedId = TryGetTeamIDFromString(args[1]);
+                                string requestedName = "";
+
+                                if (requestedId != 0) //ID found (>0) based on provided argument(s)
+                                {
+                                    requestedName = FindTeamNameByID(requestedId);
+
+                                    //remove that team
+                                    storedData.HumanNPCTeams.Remove(humannpcteams[requestedId]);
+                                    humannpcteams.Remove(requestedId);
+
+                                    save = true;
+
+                                    SendReply(player, $"Team \"{requestedName}\" (ID {requestedId}) has been removed.");
+                                    GenerateRelationshipCache();
+                                }
+                                else
+                                {
+                                    SendReply(player, "Wrong team ID or name. Type /npc_team to see a rundown of all teams.");
+
+                                }
+                            }
+                            else
+                            {
+                                SendReply(player, "Please provide a team name or ID. Type /npc_team to see a rundown of all teams.");
+                            }
+                        }
+                        break;
+                    case "fof": //fof stands for Friend or Foe, this is where team alignments are set/gotten
+                        {
+                            //usage: /npc_team fof [team_id1] [foe/neutral/friend] [team_id2]
+                            //when [foe/neutral/friend] are skipped, it just shows friendly/foe teams for that particular team id.
+
+                            if (args.Length > 1)
+                            {
+                                ulong requestedId = TryGetTeamIDFromString(args[1]);
+                                string requestedName = "";
+
+                                if (requestedId != 0) //ID found (>0) based on provided argument(s)
+                                {
+                                    requestedName = FindTeamNameByID(requestedId);
+
+                                    if (args.Length > 2)
+                                    {
+                                        string alignArg = args[2].ToLower();
+                                        if (alignArg.Equals("friend") || alignArg.Equals("neutral") || alignArg.Equals("foe"))
+                                        {
+                                            if (args.Length > 3)
+                                            {
+                                                ulong requestedOtherId = TryGetTeamIDFromString(args[3]);
+
+                                                if (requestedOtherId != 0)//if that team exists)
+                                                {
+
+                                                    //this will also check if you're trying to set a team's alignment to itself. will return 0 on fail
+                                                    if (humannpcteams[requestedId].TeamAlignmentSet(requestedOtherId, FoFStringToEnum[alignArg]))
+                                                    {
+                                                        string requestedOtherName = FindTeamNameByID(requestedOtherId); //we know it exists, it will never be null in this context
+                                                        string maybePreposition = alignArg.Equals("neutral") ? "" : "a ";
+                                                        save = true;
+
+                                                        //something about relationships between teams has changed, so regenerate the relationship cache
+                                                        SendReply(player, $"Team \"{requestedName}\" will now consider the team \"{requestedOtherName}\" {maybePreposition}{alignArg}");
+
+                                                        GenerateRelationshipCache();
+                                                    }
+                                                    else
+                                                    {
+                                                        SendReply(player, $"You cannot set a team's alignment to itself. Try with two different teams.");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    SendReply(player, "Wrong other team ID or name. Type /npc_team to see a rundown of all teams.");
+                                                }
+                                            }
+                                            else
+                                            {
+                                                SendReply(player, $"Please provide the name or ID of the other team. Try /npc_team fof {args[1]} {args[2]} [team name or ID]");
+                                            }
+                                        }
+                                        else
+                                        {
+                                            SendReply(player, $"Wrong team alignment. Try /npc_team fof {args[1]} [foe/neutral/friend] [team name or ID]");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        //display all friends and enemies from the point of view of team 1. Neutrals are naturally skipped.
+                                        if (humannpcteams[requestedId].TeamAlignmentCount() > 0)
+                                        {
+                                            SendReply(player, $"Team \"{requestedName}\" has the following alignments with other teams: (considers all other teams neutral)");
+                                            foreach (var alignment in humannpcteams[requestedId].teamAlignments)
+                                            {
+                                                //There might exist an entry for a team alignment after the team has been removed - or when the user has typed rubbish into the JSON.
+                                                //In that case, keep the entry, don't delete it,
+                                                //maybe the user's testing something?
+                                                //For this reason, try to find out if the team exists first (if so, you will receive a valid name)
+                                                //Otherwise display ???
+                                                ulong maybeOtherTeamID = alignment.Key;
+                                                string maybeOtherTeamName = FindTeamNameByID(maybeOtherTeamID);
+
+                                                if (maybeOtherTeamName == null)
+                                                {
+                                                    maybeOtherTeamName = "???";
+                                                }
+                                                SendReply(player, $"{maybeOtherTeamName} (ID {maybeOtherTeamID.ToString()}) is considered a {FoFEnumToString[alignment.Value]}");
+                                                //don't worry about "(...) is considered a neutral", neutrals are not displayed. Take that, Grammarjugend!
+                                            }
+                                        }
+                                        else
+                                        {
+                                            SendReply(player, $"Team \"{requestedName}\" has no alignments with other teams (considers all teams neutral).");
+                                        }
+                                    }
+
+                                }
+                                else
+                                {
+                                    SendReply(player, "Wrong team ID or name. Type /npc_team to see a rundown of all teams.");
+                                }
+                            }
+                            else
+                            {
+                                SendReply(player, "Usage: /npc_team fof [team 1 name or ID] [foe/neutral/friend] [team 2 name or ID]");
+                            }
+                        }
+                        break;
+                    case "uniform":
+                        {
+                            //only if Kits are loaded!
+
+                        }
+                        break;
+                    case "rename":
+                        {
+                            //because of the ambiguity (team names can contain spaces, so we don't know where one name begins, and the other ends),
+                            //we're only going to take args[1] into account for the first argument, not a concated version of args after "rename".
+                            //the consequence is that if you want to rename a team that already contains spaces in its name,
+                            //you will only be able to address it for renaming by its ID
+
+                            if (args.Length > 1)
+                            {
+                                //first argument goes into args1, the remaining into args2
+                                //even when there's only 1 element it still has to be in the array
+                                //because of the argument that TryGetTeamIDFromArgs takes
+
+                                //oh and here we can ignore args[0] which is just "rename"
+                                string[] args1 = new[] { args[1] };
+                                string[] args2 = args.Skip(2).ToArray();
+
+                                ulong requestedId = TryGetTeamIDFromString(args[1]);
+                                string requestedName = "";
+
+                                if (requestedId != 0)
+                                {
+                                    //team exists, now check if the new name has been provided
+                                    if (args2.Length > 0)
+                                    {
+                                        requestedName = FindTeamNameByID(requestedId);
+                                        string newName = ArgConcat(args2, false);
+
+                                        //rename that team
+                                        humannpcteams[requestedId].teamName = newName;
+                                        save = true;
+
+                                        SendReply(player, $"Team \"{requestedName}\" (ID {requestedId}) has been renamed to \"{newName}\"");
+                                    }
+                                    else
+                                    {
+                                        SendReply(player, "Please provide the new name for the team.");
+                                    }
+                                }
+                                else
+                                {
+                                    SendReply(player, "Wrong team ID or name. Type /npc_team to see a rundown of all teams.");
+
+                                }
+                            }
+                            else
+                            {
+                                SendReply(player, "Please provide a team name or ID and the new name for the team. Type /npc_team to see a rundown of all teams.");
+                            }
+
+                        }
+                        break;
+                    case "member":
+                        {
+                            if (args.Length > 1)
+                            {
+                                switch (args[1])
+                                {
+                                    case "add":
+                                        {
+                                            if (args.Length > 2)
+                                            {
+                                                //try to see if it's a correct ulong number, if so, user it! If not, inform the player.
+                                                ulong maybeUserId = FindWhateverUserIDFromString(args[2]);
+                                                //string maybeUserName = FindWhateverUserNameFromString(args[2]);
+
+                                                if (maybeUserId != 0) //this works for actual players and humans
+                                                {
+                                                    //let's see if the final argument has been provided...
+
+                                                    if (args.Length > 3)
+                                                    {
+                                                        //we got an argument. let's skip args[0] (member), args[1] (add), and args[2] (whatever user ID provided) - 3 total.
+                                                        //and feed that to the method.
+
+                                                        string[] subArgs = args.Skip(3).ToArray();
+
+                                                        ulong requestedId = TryGetTeamIDFromString(subArgs[0]);
+
+                                                        if (requestedId != 0) //0 means not found
+                                                        {
+                                                            string requestedName = FindTeamNameByID(requestedId);
+                                                            //penultimate check: check if the user ID is already registered as a part of that team
+
+                                                            //now check if the last argument has been provided
+
+                                                            if (!humannpcteams[requestedId].members.ContainsKey(maybeUserId))
+                                                            {
+                                                                //final check: can we actually add the user? Bool true means it was added succesfully, so a player/NPC with that id must've existed.
+                                                                //Otherwise fail
+                                                                BasePlayer maybePlayer = humannpcteams[requestedId].MemberAdd(maybeUserId); //BasePlaer of a HumanPlayer has, presumably, a different ID?
+
+                                                                if (maybePlayer != null)
+                                                                {
+                                                                    SendReply(player, $"{maybePlayer.displayName} (user ID {maybePlayer.UserIDString}) has been added to team ID {requestedId})");
+                                                                    save = true;
+
+                                                                    //something about relationships between teams has changed, so regenerate the relationship cache
+                                                                    GenerateRelationshipCache();
+                                                                }
+                                                                else
+                                                                {
+                                                                    SendReply(player, $"Error for member add {args[2]} {ArgConcat(subArgs, false)}: player or NPC with that ID not found. Try member add {args[2]} [team name or id]");
+                                                                }
+                                                            }
+                                                            else
+                                                            {
+                                                                SendReply(player, $"This player is already a member of the team {requestedId}");
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            SendReply(player, $"Error for member add {args[2]} {ArgConcat(subArgs, false)}: team not found by name nor ID. Try member add {args[2]} [team name or id]");
+                                                        }
+                                                    }
+                                                    else
+                                                        SendReply(player, $"Not enough arguments for member add {args[2]}. Try member add {args[2]} [team name or id]");
+                                                }
+                                                else
+                                                    SendReply(player, $"No user found with ID or name \"{args[2]}\"");
+                                            }
+                                            else
+                                            {
+                                                SendReply(player, "Not enough arguments for member add. Try member add [user id] [team name or id]");
+                                            }
+                                        }
+                                        break;
+                                    case "remove": //structurally identical to "add" case, just 1 less check, I guess
+                                        {
+                                            if (args.Length > 2)
+                                            {
+                                                ulong maybeUserId = FindWhateverUserIDFromString(args[2]);
+
+                                                if (maybeUserId != 0) //this works for actual players and humans
+                                                {
+                                                    if (args.Length > 3)
+                                                    {
+                                                        string[] subArgs = args.Skip(3).ToArray();
+
+                                                        ulong requestedId = TryGetTeamIDFromString(subArgs[0]);
+
+                                                        if (requestedId != 0)
+                                                        {
+                                                            string requestedName = FindTeamNameByID(requestedId);
+                                                            bool removedSuccessfully = humannpcteams[requestedId].MemberRemove(maybeUserId);
+
+                                                            if (removedSuccessfully)
+                                                            {
+                                                                SendReply(player, $"User with ID {maybeUserId}) has been removed from the team {requestedName} (ID {requestedId})");
+                                                            save = true;
+
+                                                                //something about relationships between teams has changed, so regenerate the relationship cache
+                                                                GenerateRelationshipCache();
+                                                            }
+                                                            else
+                                                            {
+                                                                SendReply(player, $"Error for member remove {args[2]} {ArgConcat(subArgs, false)}: player or NPC with that ID is not a member of the team. Try member remove {args[2]} [team name or id]");
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            SendReply(player, $"Error for member remove {args[2]} {ArgConcat(subArgs, false)}: team not found by name nor ID. Try member remove {args[2]} [team name or id]");
+                                                        }
+                                                    }
+                                                    else
+                                                        SendReply(player, $"Not enough arguments for member remove {args[2]}. Try member remove {args[2]} [team name or id]");
+                                                }
+                                                else
+                                                    SendReply(player, $"No user found with ID or name \"{args[2]}\"");
+                                            }
+                                            else
+                                            {
+                                                SendReply(player, "Not enough arguments for member remove. Try member remove [user id] [team name or id]");
+                                            }
+                                        }
+                                        break;
+                                    case "list":
+                                        {
+                                            if (args.Length > 2)
+                                            {
+                                                string[] subArgs = args.Skip(2).ToArray();
+                                                ulong maybeTeamId = TryGetTeamIDFromString(subArgs[0]);
+
+                                                if (maybeTeamId != 0)
+                                                {
+                                                    var memCount = humannpcteams[maybeTeamId].MemberCount();
+                                                    string plural = memCount == 1 ? "" : "s";
+                                                    SendReply(player, $"Team \"{humannpcteams[maybeTeamId].teamName}\" has {memCount} member{plural}");
+
+                                                    foreach (var member in humannpcteams[maybeTeamId].members)
+                                                    {
+                                                        //bool offline = false;
+                                                        string maybeName = member.Value.TryGetMemberName();
+                                                        string symbol = "???";
+                                                        string memberPositionStr = "(?,?,?)";
+                                                        string distance = "?";
+
+                                                        if (maybeName == null)
+                                                        {
+                                                            maybeName = "[OFFLINE]";
+                                                            //offline = true;
+                                                        }
+                                                        else
+                                                        {
+                                                            symbol = member.Value.IsNPC() ? "NPC" : "USR";
+
+                                                            //will never be null here since since the name is not null (so the BasePlayer/HumanPlayer with component BasePlayer exists, that's where we got the name from). If it is, something went wrong somewhere else
+                                                            BasePlayer memberPlayer = member.Value.TryGetBasePlayer();
+
+                                                            Vector3 playerPos = player.transform.position;
+                                                            Vector3 memberPlayerPos = memberPlayer.transform.position;
+                                                            distance = Vector3.Distance(playerPos, memberPlayerPos).ToString("0.##");
+                                                            memberPositionStr = $"({memberPlayerPos.x.ToString("0.##")},{memberPlayerPos.y.ToString("0.##")},{memberPlayerPos.z.ToString("0.##")})";
+
+                                                        }
+                                                        SendReply(player, $"{symbol} {maybeName} (ID {member.Key}) at {memberPositionStr} ({distance} m)");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    SendReply(player, $"Error for member list {ArgConcat(subArgs, false)}: team not found by name nor ID. If you want a rundown of all teams, type /npc_team");
+                                                }
+                                            }
+                                            else
+                                            {
+                                                SendReply(player, "Not enough arguments for member list. Try member list [team name or id]. If you want a rundown of all teams, type /npc_team");
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        {
+                                            SendReply(player, "Wrong argument for member. Try /npc_team member [add/remove] [user id] [team name or id] or /npc_team member list [team name or id]");
+                                        }
+                                        break;
+                                }
+                            }
+                            else
+                            {
+                                SendReply(player, $"Usage: /npc_team member [add/remove] [user id] [team name or id]. Your user ID is {player.userID}");
+                            }
+                        }
+                        break;
+                    case "empty":
+                        {
+                            if (args.Length > 1)
+                            {
+                                ulong requestedId = TryGetTeamIDFromString(args[1]);
+                                string requestedName = "";
+
+                                if (requestedId != 0) //ID found (>0) based on provided argument(s)
+                                {
+                                    requestedName = FindTeamNameByID(requestedId);
+
+                                    //remove all members within that team
+                                    humannpcteams[requestedId].members.Clear();
+
+                                    save = true;
+
+                                    SendReply(player, $"Team \"{requestedName}\" (ID {requestedId}) has been emptied of all the members.");
+                                    GenerateRelationshipCache();
+                                }
+                                else
+                                {
+                                    SendReply(player, "Wrong team ID or name. Type /npc_team to see a rundown of all teams.");
+
+                                }
+                            }
+                            else
+                            {
+                                SendReply(player, "Please provide a team name or ID. Type /npc_team to see a rundown of all teams.");
+                            }
+                        }
+                        break;
+                    case "purge":
+                        {
+                            storedData.HumanNPCTeams.Clear();
+                            humannpcteams.Clear();
+
+                            save = true;
+
+                            SendReply(player, "All team data has been purged.");
+                            GenerateRelationshipCache();
+                        }
+                        break;
+                    default:
+                        {
+                            //SendReply(player, $"Received these arguments: {ArgConcat(args, false)}");
+                            SendReply(player, "Wrong argument. Try: /npc_team add [name], remove [name or id], rename [id] [new name], clear [name or id], member [add/remove] [user id] [team name or id] , empty [name or id], or purge (USE WITH CAUTION)");
+                        }
+                        break;
+                }
+            }
+        }
+
+        private ulong TryGetTeamIDFromString(string arg)
+        {
+            ulong requestedId = 0;
+            string requestedName = null;
+
+            if (ulong.TryParse(arg, out requestedId)) //we got a valid id, but it still doesn't mean it exists.
+            {
+                requestedName = FindTeamNameByID(requestedId);
+                if (requestedName == null) //no team with ID found
+                {
+                    requestedId = 0;
+                }
+            }
+            else  //not a 64-bit unsigned number, so use that string as a teamname
+            {
+                requestedId = FindTeamIDByName(arg);
+            }
+
+            return requestedId;
+        }
+
+        private ulong FindWhateverUserIDFromString(string arg) //this wrapper will work for both actual and HumanPlayers
+        {
+            ulong requestedId = 0;
+
+            if (ulong.TryParse(arg, out requestedId)) //is it an ID?
+            {
+                if (!(requestedId >= 76560000000000000L || requestedId <= 0L)) //NPCs.
+                {
+                    var requestedPlayer = FindHumanPlayerByID(requestedId);
+                    if (requestedPlayer != null) //no HumanPlayer with that ID found
+                    {
+                        requestedId = requestedPlayer.info.userid;
+                    }
+                }
+                else
+                {
+                    var requestedPlayer = FindPlayerByID(requestedId);
+                    if (requestedPlayer != null)
+                    {
+                        requestedId = requestedPlayer.userID;
+                    }
+                }
+            }
+            else
+            {
+                //first, try NPC players
+                HumanPlayer requestedPlayer = FindHumanPlayer(arg);
+                if (requestedPlayer != null)
+                {
+                    requestedId = requestedPlayer.info.userid;
+                } //not found? try actual players
+                else
+                {
+                    BasePlayer requestedPlayer2 = FindPlayer(arg);
+                    if (requestedPlayer2 != null)
+                    {
+                        requestedId = requestedPlayer2.userID;
+                    }
+                }
+            }
+
+            return requestedId;
+        }
+
+        private string FindWhateverUserNameFromString(string arg) //this wrapper will work for both actual and HumanPlayers
+        {
+            string requestedName = "";
+            ulong requestedId = 0;
+
+            if (ulong.TryParse(arg, out requestedId)) //is it an ID?
+            {
+                if (!(requestedId >= 76560000000000000L || requestedId <= 0L)) //NPCs.
+                {
+                    var requestedPlayer = FindHumanPlayerByID(requestedId);
+                    if (requestedPlayer != null) //no HumanPlayer with that ID found
+                    {
+                        requestedName = requestedPlayer.info.displayName;
+                    }
+                }
+                else
+                {
+                    var requestedPlayer = FindPlayerByID(requestedId);
+                    if (requestedPlayer != null)
+                    {
+                        requestedName = requestedPlayer.displayName;
+                    }
+                }
+            }
+            else
+            {
+                //first, try NPC players
+                HumanPlayer requestedPlayer = FindHumanPlayer(arg);
+                if (requestedPlayer != null)
+                {
+                    requestedName = requestedPlayer.info.displayName;
+                } //not found? try actual players
+                else
+                {
+                    BasePlayer requestedPlayer2 = FindPlayer(arg);
+                    if (requestedPlayer != null)
+                    {
+                        requestedName = requestedPlayer2.displayName;
+                    }
+                }
+            }
+
+            return requestedName;
+        }
+
+        private ulong TryGetUserIDFromString(string arg)
+        {
+            ulong requestedId = 0;
+
+            if (ulong.TryParse(arg, out requestedId)) //we got a valid id, but it still doesn't mean it exists.
+            {
+                var requestedPlayer = FindHumanPlayerByID(requestedId);
+                if (FindHumanPlayerByID(requestedId) != null) //no player with that ID found
+                {
+                    requestedId = requestedPlayer.info.userid;
+                }
+            }
+            else  //not a 64-bit unsigned number, so use that string as a teamname
+            {
+                var requestedPlayer = FindHumanPlayer(arg);
+                if (FindHumanPlayer(arg) != null) //no player with that ID found
+                {
+                    requestedId = requestedPlayer.info.userid;
+                }
+            }
+
+            return requestedId;
+        }
+        // Nicodemus
 
         [ChatCommand("npc_way")]
         private void cmdChatNPCWay(BasePlayer player, string command, string[] args)
@@ -2594,6 +3945,13 @@ namespace Oxide.Plugins
                 SendReply(player, "<color=#81F781>/npc stopandtalk</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> XX <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To choose if the NPC should stop & look at the player that is talking to him</color>");
                 SendReply(player, "<color=#81F781>/npc use</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"TEXT\" \"TEXT2\" \"TEXT3\"</color> => <color=#D8D8D8>Don't forg4t the \", this what will be said when the player presses USE on the NPC</color>");
                 SendReply(player, "<color=#81F781>/npc waypoints</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"Waypoint list Name\" </color>=> <color=#D8D8D8>To set waypoints of an NPC, /npc_help for more information</color>");
+                // Nicodemus
+                SendReply(player, "<color=#81F781>/npc hostiletowardsarmed</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To set it if the NPC is Hostile towards armed</color>");
+                SendReply(player, "<color=#81F781>/npc hostiletowardsarmedhard</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>When the NPC is hostile towards armed, true means whole inventory is searched, not just the belt</color>");
+                SendReply(player, "<color=#81F781>/npc raisealarm</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To set it if the NPC should make other NPCs in its radius attack aswell</color>");
+
+                SendReply(player, "<color=#81F781>/npc armed</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"TEXT\" \"TEXT2\" \"TEXT3\" </color>=> <color=#D8D8D8>Dont forgot the \", this is what will be said when the NPC catches the player with weapons</color>");
+                SendReply(player, "<color=#81F781>/npc alarm</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"TEXT\" \"TEXT2\" \"TEXT3\" </color>=> <color=#D8D8D8>Dont forgot the \", this is what will be said when the NPC raises alarm</color>");
                 return;
             }
             var param = args[0].ToLower();
@@ -2602,6 +3960,24 @@ namespace Oxide.Plugins
                 string message;
                 switch(param)
                 {
+                    // Nicodemus
+                    case "hostiletowardsarmed":
+                        message = $"This NPC hostility towards armed is set to: {npcEditor.targetNPC.info.hostileTowardsArmed}";
+                        break;
+                    case "hostiletowardsarmedhard":
+                        message = $"Whether this NPC will perform deep search when hostile towards armed is set to: {npcEditor.targetNPC.info.hostileTowardsArmedHard}";
+                        break;
+
+                    case "armed":
+                        if (npcEditor.targetNPC.info.message_armed == null || (npcEditor.targetNPC.info.message_armed.Count == 0))
+                            message = "No armed message set yet";
+                        else
+                            message = $"This NPC will say when caught with a weapon: {npcEditor.targetNPC.info.message_armed.Count} different messages";
+                        break;
+                    case "raisealarm":
+                        message = $"This NPC will raise alarm: {npcEditor.targetNPC.info.raiseAlarm}";
+                        break;
+                    // Nicodemus
                     case "name":
                         message = $"This NPC name is: {npcEditor.targetNPC.info.displayName}";
                         break;
@@ -2761,7 +4137,22 @@ namespace Oxide.Plugins
                             + $"\tspawn:\n\t\t{npcEditor.targetNPC.info.spawnInfo.String()}\n"
                             + $"\tposition:\n\t\t{npcEditor.targetNPC.player.transform.position.ToString()}\n"
                             + $"\tchasing speed: {npcEditor.targetNPC.info.speed}\n"
-                            + $"\tstop to talk: {npcEditor.targetNPC.info.stopandtalk} for {npcEditor.targetNPC.info.stopandtalkSeconds} seconds\n";
+                            + $"\tstop to talk: {npcEditor.targetNPC.info.stopandtalk} for {npcEditor.targetNPC.info.stopandtalkSeconds} seconds\n"
+                            // Nicodemus
+                            + $"\thostile towards armed: {npcEditor.targetNPC.info.hostileTowardsArmed}\n"
+                            + $"\thostile towards armed hard: {npcEditor.targetNPC.info.hostileTowardsArmedHard}\n"
+                            + $"\traise alarm: {npcEditor.targetNPC.info.raiseAlarm}\n";
+                        // Nicodemus
+                        if (npcEditor.targetNPC.info.message_armed == null || (npcEditor.targetNPC.info.message_armed.Count == 0))
+                        {
+                            message += "\tNo armed message set yet\n";
+                        }
+                        else
+                        {
+                            message += $"\twill say when caught armed: {npcEditor.targetNPC.info.message_armed.Count} different messages\n";
+                        }
+                        // Nicodemus
+
                         if(npcEditor.targetNPC.info.waypoint == null)
                         {
                             message += "\tNo waypoints";
@@ -2832,6 +4223,23 @@ namespace Oxide.Plugins
             }
             switch(param)
             {
+                // Nicodemus
+                case "hostiletowardsarmed":
+                    npcEditor.targetNPC.info.hostileTowardsArmed = GetBoolValue(args[1]);
+                    break;
+                case "hostiletowardsarmedhard":
+                    npcEditor.targetNPC.info.hostileTowardsArmedHard = GetBoolValue(args[1]);
+                    break;
+                case "armed":
+                    npcEditor.targetNPC.info.message_armed = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
+                    break;
+                case "raisealarm":
+                    npcEditor.targetNPC.info.raiseAlarm = GetBoolValue(args[1]);
+                    break;
+                case "alarm":
+                    npcEditor.targetNPC.info.message_alarm = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
+                    break;
+                // Nicodemus
                 case "name":
                     npcEditor.targetNPC.info.displayName = args[1];
                     break;
@@ -3167,6 +4575,13 @@ namespace Oxide.Plugins
                     humanPlayer.locomotion.Stand();
                     humanPlayer.locomotion.Evade();
                 }
+                // Nicodemus
+                if (StartAttackingEntityIfSupposedTo(npc, player, true)) //returns true if decided to attack
+                {
+                    if (humanPlayer.info.raiseAlarm == true)
+                        RaiseAlarm(npc, player);
+                }
+                // Nicodemus
                 humanPlayer.StartAttackingEntity(player);
             }
         }
@@ -3209,6 +4624,216 @@ namespace Oxide.Plugins
                 SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_bye));
             }
         }
+
+        // Nicodemus
+        private int RaiseAlarm(BasePlayer caller, BasePlayer target, int limit = 0) //will return the number of HumanPlayers notified who responded
+        {
+            //you're going to "broadcast" a spherical distress signal around yourself based on your maxDistance
+            //(perhaps a separata alarmRadius property for NPCs should be implemented)?
+
+            //every NPC in the radius will "hear" the call, but not every single one will answer.
+            //if the respoinder is hostile, only when the caller is a part of the same team (doesn't matter if you're just friendly)
+            //If not hostile, only if friendly.
+            bool raised = false;
+            int counter = 0;
+
+            HumanPlayer humanPlayerComponent = caller.GetComponent<HumanPlayer>();
+
+            if (humanPlayerComponent == null)
+            {
+                return -1; //actual players don't raise alarms... or should they? we'll see.
+            }
+            else
+            {
+                List<BasePlayer> nearPlayers = new List<BasePlayer>();
+                Vis.Entities<BasePlayer>(caller.transform.position, humanPlayerComponent.info.maxDistance, nearPlayers, playerMask);
+                foreach (var responder in nearPlayers)
+                {
+                    raised = false;
+
+                    //check if we've reached the limit of called players
+                    if (limit > 0 && counter >= limit)
+                        break;
+                    else
+                    {
+                        //check if responder is an NPC
+                        if (!(responder.userID >= 76560000000000000L || responder.userID <= 0L))
+                        {
+                            HumanPlayer foundHumanPlayerComponent = responder.GetComponent<HumanPlayer>();
+
+                            //check if responder is already targeting someone, in that case, do nothing
+                            if (foundHumanPlayerComponent != null)
+                            {
+                                if (foundHumanPlayerComponent.locomotion.attackEntity == null)
+                                {
+                                    //check if responder is hostile. if so, the caller must be in the same team for the response to be answered
+                                    if (foundHumanPlayerComponent.info.hostile == true)
+                                    {
+                                        if (CheckIfUsersShareTeam(responder.userID, caller.userID)) //doesn't matter if you're friends through teams etc.
+                                        {
+                                            raised = true; //at least 1 NPC has been notified and answered the call
+                                        }
+
+                                    }
+                                    else
+                                    {
+                                        //non-hostile NPCs will answer calls of their friends, not just the team
+                                        if (GetRelationshipFromCache(responder.userID, caller.userID) == HumanNPCAlignment.Friend)
+                                        {
+                                            raised = true;
+                                        }
+                                    }
+
+                                    if (raised == true)
+                                    {
+                                        foundHumanPlayerComponent.StartAttackingEntity(target);
+                                        counter++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return counter;
+        }
+
+        //This is a wrapper that checks for hostility, team alignments etc.
+        private bool StartAttackingEntityIfSupposedTo(BasePlayer npc, BasePlayer player, bool sendChatMessage=false)
+        {
+            bool doAttack = false;
+
+            var humanPlayer = npc.GetComponent<HumanPlayer>();
+            List<string> messageWhich = null;
+
+            if (player.GetComponent<NPCEditor>() == null && !(bool)(Vanish?.CallHook("IsInvisible", player) ?? false))
+            {
+                if (humanPlayer.info.hostile) //hostiles will not attack their friends, but will attack foes and neutrals on sight
+                {
+                    //
+                    if (GetRelationshipFromCache(humanPlayer.info.userid, player.userID).Equals(HumanNPCAlignment.Friend))
+                    {
+                        messageWhich = humanPlayer.info.message_hello;
+                    }
+                    else
+                    {
+                        //no message for now
+                        doAttack = true;
+                    }
+                }
+                else
+                {
+                    //non-hostiles will only attack their foes on sight, or whatever their hostiletowardsarmed settings are for neutrals
+
+                    messageWhich = humanPlayer.info.message_hello;
+
+                    switch (GetRelationshipFromCache(humanPlayer.info.userid, player.userID))
+                    {
+                        case HumanNPCAlignment.Foe:
+                            {
+                                if (humanPlayer.info.raiseAlarm)
+                                    messageWhich = humanPlayer.info.message_alarm;
+                                else
+                                    messageWhich = null;
+
+                                doAttack = true;
+                            }
+                            break;
+                        case HumanNPCAlignment.Neutral:
+                            {
+                                if (humanPlayer.info.hostileTowardsArmed)
+                                {
+                                    if (CheckForWeapons(player, humanPlayer.info.hostileTowardsArmedHard))
+                                    {
+                                        //oops. you have a weapon. armed hello.
+                                        //or raising alarm.
+
+                                        //check if you're supposed to raise alarm, then.
+                                        if (humanPlayer.info.raiseAlarm)
+                                            messageWhich = humanPlayer.info.message_alarm;
+                                        else
+                                            messageWhich = null;
+
+                                        doAttack = true;
+                                    }
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
+
+            if (messageWhich != null && messageWhich.Count > 0)
+            {
+                SendMessage(humanPlayer, player, GetRandomMessage(messageWhich));
+            }
+
+            if (doAttack)
+            {
+                if (humanPlayer.locomotion.sitting)
+                {
+                    humanPlayer.locomotion.Stand();
+                    humanPlayer.locomotion.Evade();
+                }
+                humanPlayer.StartAttackingEntity(player);
+            }
+
+            return doAttack;
+        }
+
+        private bool CheckForWeapons(BasePlayer player, bool searchWholeInventory)
+        {
+            var weaponFound = false;
+
+            for (int slot = 0; slot < player.inventory.containerBelt.capacity; ++slot)
+            {
+                Item slotItem = player.inventory.containerBelt.GetSlot(slot);
+
+                if (CheckIfWeapon(slotItem))
+                {
+                    weaponFound = true;
+
+                    break;
+                }
+            }
+
+            if (weaponFound == false && searchWholeInventory == true)
+            {
+                for (int slot = 0; slot < player.inventory.containerMain.capacity; ++slot)
+                {
+                    Item slotItem2 = player.inventory.containerMain.GetSlot(slot);
+
+                    if (CheckIfWeapon(slotItem2))
+                    {
+                        weaponFound = true;
+
+                        break;
+                    }
+
+                }
+            }
+
+            return weaponFound;
+        }
+
+        private bool CheckIfWeapon(Item potentialWeapon)
+        {
+            var isWeapon = false;
+
+            if (potentialWeapon == null)
+                isWeapon = false;
+            else
+            {
+                String slotItemCat = potentialWeapon.info.category.ToString();
+
+                if (slotItemCat.Equals("Weapon") || slotItemCat.Equals("Tool") || slotItemCat.Equals("Ammunition") || slotItemCat.Equals("Traps"))
+                {
+                    isWeapon = true;
+                }
+            }
+            return isWeapon;
+        }
+        // Nicodemus
 
         /////////////////////////////////////////////
         ///  OnKillNPC(BasePlayer npc, HitInfo hinfo)
