@@ -56,9 +56,9 @@ Descriptions of these below
 - /npc_team empty [team name or ID]
 - /npc_team purge => Removes all the team data
 - /npc_team member => self-explanatory I hope
-- /npc_team member => add
-- /npc_team member => remove
-- /npc_team member => list
+- /npc_team member add
+- /npc_team member remove
+- /npc_team member list
 - /npc_team fof [team name or id] => Displays all current 1-sided relationships of the team towards other teams
 - /npc_team fof [team name or id] [friend/neutral/foe] [team 2 name or id] => Sets the 1-sided alignment of the team 1 to team 2 (I might implement an optional "mutual" parameter that does the opposite, too - remember, assymetrical relationships)
 
