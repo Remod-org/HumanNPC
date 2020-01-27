@@ -2635,12 +2635,16 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////
         private void OnEntityDeath(BaseCombatEntity entity, HitInfo hitinfo)
         {
-            var killer = (entity.lastAttacker ?? hitinfo?.Initiator).GetComponent<HumanPlayer>();
-            if(killer != null)
+            try
             {
-                killer.EndFollowingEntity();
-                killer.EndAttackingEntity();
+                var killer = (entity.lastAttacker ?? hitinfo?.Initiator).GetComponent<HumanPlayer>();
+                if(killer != null)
+                {
+                    killer.EndFollowingEntity();
+                    killer.EndAttackingEntity();
+                }
             }
+            catch {}
             var humanPlayer = entity.GetComponent<HumanPlayer>();
             if(humanPlayer?.info == null) return;
             if(!humanPlayer.info.lootable)
