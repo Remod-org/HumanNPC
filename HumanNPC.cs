@@ -32,12 +32,12 @@ namespace Oxide.Plugins
 
         private Hash<ulong, HumanNPCInfo> humannpcs = new Hash<ulong, HumanNPCInfo>();
 
-        // Nicodemus
+        // Nikedemos
         private Hash<ulong, HumanNPCTeamInfo> humannpcteams = new Hash<ulong, HumanNPCTeamInfo>();
         //private FoFLookup fofLookup = new FoFLookup(); //constructor is empty, don't generate yet, wait for all the NPCTeamInfo to be populated first!
         public static readonly Dictionary<HumanNPCAlignment, string> FoFEnumToString = new Dictionary<HumanNPCAlignment, string>();
         public static readonly Dictionary<string, HumanNPCAlignment> FoFStringToEnum = new Dictionary<string, HumanNPCAlignment>();
-        // Nicodemus
+        // Nikedemos
 
         static int playerMask = LayerMask.GetMask("Player (Server)");
         //static int obstructionMask = LayerMask.GetMask(new[] { "Player (Server)", "Construction", "Deployed", "Clutter" });
@@ -59,7 +59,7 @@ namespace Oxide.Plugins
         private class StoredData
         {
             public HashSet<HumanNPCInfo> HumanNPCs = new HashSet<HumanNPCInfo>();
-            // Nicodemus
+            // Nikedemos
             public HashSet<HumanNPCTeamInfo> HumanNPCTeams = new HashSet<HumanNPCTeamInfo>();
         }
 
@@ -1592,7 +1592,7 @@ namespace Oxide.Plugins
             }
         }
 
-        // Nicodemus
+        // Nikedemos
         public class HumanNPCTeamMember
         {
             public ulong userid;
@@ -2044,7 +2044,7 @@ namespace Oxide.Plugins
             }
         }
 
-        // Nicodemus
+        // Nikedemos
         public class HumanNPCTeamInfo
         {
             public ulong teamid;
@@ -2173,7 +2173,7 @@ namespace Oxide.Plugins
                 return success;
             }
         }
-        // Nicodemus
+        // Nikedemos
 
         //////////////////////////////////////////////////////
         ///  class HumanNPCInfo
@@ -2224,7 +2224,7 @@ namespace Oxide.Plugins
             public List<string> message_kill;
             public Dictionary<DamageType, float> protections = new Dictionary<DamageType, float>();
 
-            // Nicodemus
+            // Nikedemos
             public bool hostileTowardsArmed;
             public bool hostileTowardsArmedHard;
             public bool raiseAlarm;
@@ -2263,7 +2263,7 @@ namespace Oxide.Plugins
                 allowride = false;
                 damageInterval = 2;
 
-                // Nicodemus
+                // Nikedemos
                 hostileTowardsArmed = false;
                 hostileTowardsArmedHard = false;
                 raiseAlarm = false;
@@ -2313,7 +2313,7 @@ namespace Oxide.Plugins
                     hitchance = hitchance,
                     reloadDuration = reloadDuration,
                     protections = protections?.ToDictionary(p => p.Key, p => p.Value),
-                    // Nicodemus
+                    // Nikedemos
                     hostileTowardsArmed = hostileTowardsArmed,
                     hostileTowardsArmedHard = hostileTowardsArmedHard,
                     raiseAlarm = raiseAlarm,
@@ -2367,7 +2367,7 @@ namespace Oxide.Plugins
             CheckCfg("Chat", ref chat);
             SaveConfig();
 
-            // Nicodemus
+            // Nikedemos
             FoFEnumToString.Add(HumanNPCAlignment.Foe, "foe");
             FoFEnumToString.Add(HumanNPCAlignment.Neutral, "neutral");
             FoFEnumToString.Add(HumanNPCAlignment.Friend, "friend");
@@ -2403,7 +2403,7 @@ namespace Oxide.Plugins
             filter.Add("Look rotation viewing vector is zero");
             RustExtension.Filter = filter.ToArray();
 
-            //Nicodemus
+            //Nikedemos
             foreach(var theteam in storedData.HumanNPCTeams)
             {
                 humannpcteams[theteam.teamid] = theteam;
@@ -2578,7 +2578,7 @@ namespace Oxide.Plugins
 #if DEBUG
                 Interface.Oxide.LogInfo($"OnEntityTakeDamage(by {entity.name})");
 #endif
-                // Nicodemus
+                // Nikedemos
                 //if you're supposed to retaliate against your team members,
                 //check if the initiator is part of the same team
                 if(hitinfo.Initiator is BaseCombatEntity && !(hitinfo.Initiator is Barricade) && humanPlayer.info.defend)
@@ -2704,7 +2704,7 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////
         /// End of Oxide Hooks
         //////////////////////////////////////////////////////
-        // Nicodemus
+        // Nikedemos
 
         //can use substrings (Contains instead of Equals), so names with spaces etc should be okay
         public ulong FindTeamIDByName(string name)
@@ -2758,7 +2758,7 @@ namespace Oxide.Plugins
 
             return teamId; //will return 0 on failure to add a team
         }
-        // Nicodemus
+        // Nikedemos
 
         private Dictionary<ulong, HumanPlayer> cache = new Dictionary<ulong, HumanPlayer>();
 
@@ -3090,7 +3090,7 @@ namespace Oxide.Plugins
             return newlist;
         }
 
-        // Nicodemus
+        // Nikedemos
         private string ArgConcat(string[] args, bool withoutFirstElement)
         {
             string built = "";
@@ -3113,7 +3113,7 @@ namespace Oxide.Plugins
 
             return built;
         }
-        // Nicodemus
+        // Nikedemos
 
         //////////////////////////////////////////////////////////////////////////////
         /// Chat Commands
@@ -3164,7 +3164,7 @@ namespace Oxide.Plugins
             npcEditor.targetNPC = humanPlayer;
         }
 
-        // Nicodemus
+        // Nikedemos
         [ChatCommand("npc_team")]
         private void cmdChatNPCTeam(BasePlayer player, string command, string[] args)
         {
@@ -3780,7 +3780,7 @@ namespace Oxide.Plugins
 
             return requestedId;
         }
-        // Nicodemus
+        // Nikedemos
 
         [ChatCommand("npc_way")]
         private void cmdChatNPCWay(BasePlayer player, string command, string[] args)
@@ -3949,7 +3949,7 @@ namespace Oxide.Plugins
                 SendReply(player, "<color=#81F781>/npc stopandtalk</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> XX <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To choose if the NPC should stop & look at the player that is talking to him</color>");
                 SendReply(player, "<color=#81F781>/npc use</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"TEXT\" \"TEXT2\" \"TEXT3\"</color> => <color=#D8D8D8>Don't forg4t the \", this what will be said when the player presses USE on the NPC</color>");
                 SendReply(player, "<color=#81F781>/npc waypoints</color> <color=#F6CECE>reset</color>/<color=#F2F5A9>\"Waypoint list Name\" </color>=> <color=#D8D8D8>To set waypoints of an NPC, /npc_help for more information</color>");
-                // Nicodemus
+                // Nikedemos
                 SendReply(player, "<color=#81F781>/npc hostiletowardsarmed</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To set it if the NPC is Hostile towards armed</color>");
                 SendReply(player, "<color=#81F781>/npc hostiletowardsarmedhard</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>When the NPC is hostile towards armed, true means whole inventory is searched, not just the belt</color>");
                 SendReply(player, "<color=#81F781>/npc raisealarm</color> <color=#F2F5A9>true</color>/<color=#F6CECE>false</color> <color=#F2F5A9>XX </color>=> <color=#D8D8D8>To set it if the NPC should make other NPCs in its radius attack aswell</color>");
@@ -3964,7 +3964,7 @@ namespace Oxide.Plugins
                 string message;
                 switch(param)
                 {
-                    // Nicodemus
+                    // Nikedemos
                     case "hostiletowardsarmed":
                         message = $"This NPC hostility towards armed is set to: {npcEditor.targetNPC.info.hostileTowardsArmed}";
                         break;
@@ -3981,7 +3981,7 @@ namespace Oxide.Plugins
                     case "raisealarm":
                         message = $"This NPC will raise alarm: {npcEditor.targetNPC.info.raiseAlarm}";
                         break;
-                    // Nicodemus
+                    // Nikedemos
                     case "name":
                         message = $"This NPC name is: {npcEditor.targetNPC.info.displayName}";
                         break;
@@ -4142,11 +4142,11 @@ namespace Oxide.Plugins
                             + $"\tposition:\n\t\t{npcEditor.targetNPC.player.transform.position.ToString()}\n"
                             + $"\tchasing speed: {npcEditor.targetNPC.info.speed}\n"
                             + $"\tstop to talk: {npcEditor.targetNPC.info.stopandtalk} for {npcEditor.targetNPC.info.stopandtalkSeconds} seconds\n"
-                            // Nicodemus
+                            // Nikedemos
                             + $"\thostile towards armed: {npcEditor.targetNPC.info.hostileTowardsArmed}\n"
                             + $"\thostile towards armed hard: {npcEditor.targetNPC.info.hostileTowardsArmedHard}\n"
                             + $"\traise alarm: {npcEditor.targetNPC.info.raiseAlarm}\n";
-                        // Nicodemus
+                        // Nikedemos
                         if (npcEditor.targetNPC.info.message_armed == null || (npcEditor.targetNPC.info.message_armed.Count == 0))
                         {
                             message += "\tNo armed message set yet\n";
@@ -4155,7 +4155,7 @@ namespace Oxide.Plugins
                         {
                             message += $"\twill say when caught armed: {npcEditor.targetNPC.info.message_armed.Count} different messages\n";
                         }
-                        // Nicodemus
+                        // Nikedemos
 
                         if(npcEditor.targetNPC.info.waypoint == null)
                         {
@@ -4227,7 +4227,7 @@ namespace Oxide.Plugins
             }
             switch(param)
             {
-                // Nicodemus
+                // Nikedemos
                 case "hostiletowardsarmed":
                     npcEditor.targetNPC.info.hostileTowardsArmed = GetBoolValue(args[1]);
                     break;
@@ -4243,7 +4243,7 @@ namespace Oxide.Plugins
                 case "alarm":
                     npcEditor.targetNPC.info.message_alarm = args[1] == "reset" ? new List<string>() : ListFromArgs(args, 1);
                     break;
-                // Nicodemus
+                // Nikedemos
                 case "name":
                     npcEditor.targetNPC.info.displayName = args[1];
                     break;
@@ -4579,13 +4579,13 @@ namespace Oxide.Plugins
                     humanPlayer.locomotion.Stand();
                     humanPlayer.locomotion.Evade();
                 }
-                // Nicodemus
+                // Nikedemos
                 if (StartAttackingEntityIfSupposedTo(npc, player, true)) //returns true if decided to attack
                 {
                     if (humanPlayer.info.raiseAlarm == true)
                         RaiseAlarm(npc, player);
                 }
-                // Nicodemus
+                // Nikedemos
                 humanPlayer.StartAttackingEntity(player);
             }
         }
@@ -4629,7 +4629,7 @@ namespace Oxide.Plugins
             }
         }
 
-        // Nicodemus
+        // Nikedemos
         private int RaiseAlarm(BasePlayer caller, BasePlayer target, int limit = 0) //will return the number of HumanPlayers notified who responded
         {
             //you're going to "broadcast" a spherical distress signal around yourself based on your maxDistance
@@ -4837,7 +4837,7 @@ namespace Oxide.Plugins
             }
             return isWeapon;
         }
-        // Nicodemus
+        // Nikedemos
 
         /////////////////////////////////////////////
         ///  OnKillNPC(BasePlayer npc, HitInfo hinfo)
