@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920", "0.3.29", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920", "0.3.30", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -462,10 +462,13 @@ namespace Oxide.Plugins
 
             public void Sit()
             {
+                if(sitting) return;
                 npc.Invoke("AllowMove",0);
                 // Find a place to sit
                 List<BaseChair> chairs = new List<BaseChair>();
+                List<StaticInstrument> pianos = new List<StaticInstrument>();
                 Vis.Entities<BaseChair>(npc.player.transform.position, 15f, chairs);
+                Vis.Entities<StaticInstrument>(npc.player.transform.position, 1f, pianos);
                 foreach(var mountable in chairs.Distinct().ToList())
                 {
 #if DEBUG
@@ -487,6 +490,32 @@ namespace Oxide.Plugins
                     npc.player.ClientRPCPlayer<Vector3>(null, npc.player, "ForcePositionTo", npc.player.transform.position);
                     mountable.SetFlag(BaseEntity.Flags.Busy, true, false);
                     sitting = true;
+                    break;
+                }
+                foreach(var mountable in pianos.Distinct().ToList())
+                {
+#if DEBUG
+                    Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to sit at instrument");
+#endif
+                    if(mountable.IsMounted())
+                    {
+#if DEBUG
+                        Interface.Oxide.LogInfo($"Someone is sitting here.");
+#endif
+                        continue;
+                    }
+#if DEBUG
+                    Interface.Oxide.LogInfo($"Found an empty instrument.");
+#endif
+                    mountable.MountPlayer(npc.player);
+                    npc.player.OverrideViewAngles(mountable.mountAnchor.transform.rotation.eulerAngles);
+                    npc.player.eyes.NetworkUpdate(mountable.mountAnchor.transform.rotation);
+                    npc.player.ClientRPCPlayer<Vector3>(null, npc.player, "ForcePositionTo", npc.player.transform.position);
+                    mountable.SetFlag(BaseEntity.Flags.Busy, true, false);
+                    sitting = true;
+                    Interface.Oxide.LogInfo($"Setting instrument for {npc.player.displayName} to {mountable.ShortPrefabName}");
+                    npc.info.instrument = mountable.ShortPrefabName;
+                    npc.ktool = mountable;//.GetParentEntity() as StaticInstrument;
                     break;
                 }
             }
@@ -1211,7 +1240,8 @@ namespace Oxide.Plugins
             public HumanLocomotion locomotion;
             public HumanTrigger trigger;
             public ProtectionProperties protection;
-            public InstrumentKeyController instrument;
+            public InstrumentTool itool;
+            public StaticInstrument ktool;
 
             public BasePlayer player;
 
@@ -1539,15 +1569,8 @@ namespace Oxide.Plugins
                     instr.UpdateHeldItemVisibility();
                     var item = instr.GetItem();
                     SetActive(item.uid);
-                    InstrumentTool itool = instr as InstrumentTool;
-                    this.instrument = itool.KeyController;
-                    //itool.NotePlayedStatName = "F";
-                    this.instrument.NoteBindings = new InstrumentKeyController.NoteBinding[1];
-                    this.instrument.ProcessServerPlayedNote(this.player);
-
-                //InputMessage message = new InputMessage() { buttons = 1 };
-                //horse.RiderInput(new InputState() { current = message }, this.player);
-
+                    this.itool = instr as InstrumentTool;
+                    this.info.instrument = instr.ShortPrefabName;
                 }
                 return instr;
             }
@@ -2215,8 +2238,8 @@ namespace Oxide.Plugins
             public float evdist;
             public bool allowsit;
             public bool allowride;
-            public string musician;
-            public float band = 0f;
+            public float band = 0;
+
             public List<string> message_hello;
             public List<string> message_bye;
             public List<string> message_use;
@@ -2230,6 +2253,8 @@ namespace Oxide.Plugins
             public bool raiseAlarm;
             public List<string> message_armed;
             public List<string> message_alarm;
+
+            public string instrument;
 
             public HumanNPCInfo(ulong userid, Vector3 position, Quaternion rotation)
             {
@@ -2267,6 +2292,8 @@ namespace Oxide.Plugins
                 hostileTowardsArmed = false;
                 hostileTowardsArmedHard = false;
                 raiseAlarm = false;
+                instrument = null;
+                band = 0;
 
                 for(var i = 0; i < (int)DamageType.LAST; i++)
                 {
@@ -2318,7 +2345,9 @@ namespace Oxide.Plugins
                     hostileTowardsArmedHard = hostileTowardsArmedHard,
                     raiseAlarm = raiseAlarm,
                     message_armed = message_armed?.ToList(),
-                    message_alarm = message_alarm?.ToList()
+                    message_alarm = message_alarm?.ToList(),
+                    instrument = instrument,
+                    band = band
                 };
             }
         }
@@ -2533,6 +2562,8 @@ namespace Oxide.Plugins
         private void OnPlayerInput(BasePlayer player, InputState input)
         {
             if(player == null || input == null) return;
+//            if(input.current.buttons > 0)
+//                Puts($"OnPlayerInput: {input.current.buttons}");
             if(!input.WasJustPressed(BUTTON.USE)) return;
 
             Quaternion currentRot;
@@ -4113,6 +4144,9 @@ namespace Oxide.Plugins
                         npcEditor.targetNPC.info.allowsit = false;
                         npcEditor.targetNPC.locomotion.Stand();
                         break;
+                    case "band":
+                        message = $"This NPC's band is band {npcEditor.targetNPC.info.band.ToString()}";
+                        break;
                     case "info":
                         message = $" {npcEditor.targetNPC.info.displayName}\n"
                             + $"\tenabled: {npcEditor.targetNPC.info.enable}\n"
@@ -4142,6 +4176,8 @@ namespace Oxide.Plugins
                             + $"\tposition:\n\t\t{npcEditor.targetNPC.player.transform.position.ToString()}\n"
                             + $"\tchasing speed: {npcEditor.targetNPC.info.speed}\n"
                             + $"\tstop to talk: {npcEditor.targetNPC.info.stopandtalk} for {npcEditor.targetNPC.info.stopandtalkSeconds} seconds\n"
+                            + $"\tInstrument: currently set to {npcEditor.targetNPC.info.instrument}\n"
+                            + $"\tBand: currently set to {npcEditor.targetNPC.info.band.ToString()}\n"
                             // Nikedemos
                             + $"\thostile towards armed: {npcEditor.targetNPC.info.hostileTowardsArmed}\n"
                             + $"\thostile towards armed hard: {npcEditor.targetNPC.info.hostileTowardsArmedHard}\n"
@@ -4230,6 +4266,9 @@ namespace Oxide.Plugins
                 // Nikedemos
                 case "hostiletowardsarmed":
                     npcEditor.targetNPC.info.hostileTowardsArmed = GetBoolValue(args[1]);
+                    break;
+                case "band":
+                    npcEditor.targetNPC.info.band = Convert.ToSingle(args[1]);
                     break;
                 case "hostiletowardsarmedhard":
                     npcEditor.targetNPC.info.hostileTowardsArmedHard = GetBoolValue(args[1]);
@@ -4531,9 +4570,72 @@ namespace Oxide.Plugins
         //////////////////////////////////////////////////////
         private List<ulong> HumanNPCs()=>humannpcs.Keys.ToList<ulong>();
 
+        private string HumanNPCname(ulong userid)
+        {
+            HumanPlayer humanPlayer;
+            if(cache.TryGetValue(userid, out humanPlayer)) return humanPlayer.info.displayName;
+            var allBasePlayer = Resources.FindObjectsOfTypeAll<HumanPlayer>();
+            foreach(var humanplayer in allBasePlayer)
+            {
+                if(humanplayer.player.userID != userid) continue;
+                cache[userid] = humanplayer;
+                return humanplayer.info.displayName;
+            }
+            return null;
+        }
+
         private bool IsHumanNPC(BasePlayer player)
         {
             return player.GetComponent<HumanPlayer>() != null;
+        }
+
+        // Hook to play note based on NPC ID and other values from external sequencing app
+        // NPC must have its band value set to a matching band
+        private bool npcPlayNote(ulong npcid, int band, int note, int sharp, int octave, float noteval, float duration = 0.2f)
+        {
+#if DEBUG
+            Puts($"npcPlayNote called for NPC {npcid.ToString()}");
+#endif
+            if(humannpcs.ContainsKey(npcid))
+            {
+                var npc = FindHumanPlayerByID(npcid);
+                if(npc.info.band != band) return false;
+#if DEBUG
+                Puts($"Found NPC: {npc.info.displayName}");
+#endif
+                switch(npc.info.instrument)
+                {
+                    case "drumkit.deployed":
+                    case "xylophone.deployed":
+#if DEBUG
+                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
+#endif
+                        npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                        break;
+                    case "piano.deployed":
+#if DEBUG
+                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
+#endif
+                        npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                        timer.Once(duration, () =>
+                        {
+                            npc.ktool.ClientRPC<int, int, int, float>(null, "Client_StopNote", note, sharp, octave, noteval);
+                        });
+                        break;
+                    default:
+#if DEBUG
+                        Puts($"Playing note {note.ToString()} on held instrument {npc.info.instrument}.");
+#endif
+                        npc.itool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                        timer.Once(duration, () =>
+                        {
+                            npc.itool.ClientRPC<int, int, int, float>(null, "Client_StopNote", note, sharp, octave, noteval);
+                        });
+                        break;
+                }
+                return true;
+            }
+            return false;
         }
 
         //////////////////////////////////////////////////////
@@ -4860,9 +4962,9 @@ namespace Oxide.Plugins
         ///  Called when an NPC respawns
         ///  here it will give an NPC a kit and set the first tool in the belt as the active weapon
         /////////////////////////////////////////////
-        /*void OnNPCRespawn(BasePlayer npc)
+        void OnNPCRespawn(BasePlayer npc)
         {
-        }*/
+        }
 
         //////////////////////////////////////////////////////
         ///  OnNPCStartAttacking(BasePlayer npc, BaseEntity target)
