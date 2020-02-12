@@ -3,6 +3,9 @@ Adds interactive human NPCs which can be modded by other plugins
 
 Adds customizable, human, non-player characters in-game. Make your cities a little bit more lively!
 
+Requires: Pathfinding
+Uses: Waypoints
+
 ## Features
 
 - Fully configurable
@@ -27,6 +30,17 @@ Adds customizable, human, non-player characters in-game. Make your cities a litt
 - Have NPC find and sit in a chair it finds in range
 - While chasing or using Waypoints, the NPC will try to detect automatically the best ground position (except during evasion, work pending)
 
+## Teams
+- There can exist many teams.
+- Every player/NPC can be a part of one or more teams (or none at all).
+- Teams can be friends, neutral or foes towards one another and those relationships can be asymmetrical - meaning, team 1 can consider team 2 friends, while team 2 considers team 1 neutral or foes. There exists a fast Dictionary-based relationship cache for looking up whether User 1 considers User 2 a friend, neutral or enemy. This cache gets re-generated every time something about teams/alignments/members changes. It's generated based upon all the teams alignments and possible conflicts. Members of the same team automatically consider each other friends.
+- NPCs have some new properties:
+  - bool hostiletowardsarmed
+  - bool hostiletowardsarmedhard
+  - bool raiseAlarm
+
+Descriptions of these below
+
 ## Commands
 
 - /npc_add => create a new NPC and edit it
@@ -38,6 +52,18 @@ Adds customizable, human, non-player characters in-game. Make your cities a litt
 - /npc_pathtest => follow NPC path
 - /npc_list => list all NPCs
 - /npc_way [id] => draws path of the NPC you are looking at or specified ID
+- /npc_team => Displays a list of teams, their IDs and their member count
+- /npc_team rename [new name] => Gives the team a new name
+- /npc_team add [team name, can include spaces] => Adds a team and displays a newly generated ulong ID for it
+- /npc_team remove [team name or ID] => Removes a team
+- /npc_team empty [team name or ID]
+- /npc_team purge => Removes all the team data
+- /npc_team member => self-explanatory I hope
+- /npc_team member add
+- /npc_team member remove
+- /npc_team member list
+- /npc_team fof [team name or id] => Displays all current 1-sided relationships of the team towards other teams
+- /npc_team fof [team name or id] [friend/neutral/foe] [team 2 name or id] => Sets the 1-sided alignment of the team 1 to team 2 (I might implement an optional "mutual" parameter that does the opposite, too - remember, assymetrical relationships)
 
 NPC_ADD  
 Creates a new NPC, and edits it.   
@@ -82,13 +108,17 @@ By entering the command alone, you will see what values are currently set.  Opti
 * evade true/false_ => move if hit while being attacked_
 * evdist float_ => how far to move when hit (some randomization is built-in)_
 * allowsit_ => Find a chair nearby and sit on spawn_
+* band NUM_ => Set band number for external players_
 * follow_ => Follow the attacker as they are running out of range (default is true as with older versions)
 * sit_ => Make the NPC sit (toggles allowsit)_
 * stand_ => Make the NPC stand (toggles allowsit)_
 * needsAmmo true/false_ => needs to have ammo in inventory to shoot_  
+* hostiletowardsarmed => If true, the NPC will look in the players belt and if it finds any tools, weapons, traps or anything considered "bad" (the list of items is based on categories, but this can be customised/expanded upon) it will attack the player when they cross its interaction radius. If the NPC is supposed to raise the alarm, they will.
+* hostiletowardsarmedhard => If true, when performing the strip-search, the whole inventory is checked. Next step, making this work AFTER the player has crossed the NPC's interaction radius. At the moment, you can approach a strip-searching NPC with no weapon, take it out, and they will do nothing.
+* raiseAlarm => If true, the npc will send a distress "signal" (along with a chat message), limited to the number of NPCs that answer it (default 0 = no limit). A visibility check in the sphere of radius based on one of the existing distance values is performed. All the NPCs that the alarm raiser can see will receive this call, but not all of them will answer it. Hostile NPCs will only answer alarm calls from their team members (ignoring teams that are friends with their team). Non-hostile NPCs will answer the calls all friends. I might also implement an extra flag like "white knight" that will make an NPC answer every distress call, what do you think?
 
 NPC WAYPOINTS:  
-  You will need to make waypoints with the [Waypoints](https://umod.org/plugins/waypoints#documentation) plugin.  Create a set of waypoints with NAME and use /npc waypoints NAME when editing your NPC.  
+  You will need to make waypoints with the [Waypoints](https://remod.org/waypoints) plugin.  Create a set of waypoints with NAME and use /npc waypoints NAME when editing your NPC.  
 
 NPC KIT:
 
