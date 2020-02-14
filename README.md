@@ -77,56 +77,59 @@ NPC_END
 Stop editing an NPC  
   
 NPC  
-By entering the command alone, you will see what values are currently set.  Option values:  
-* attackdistance XX => _Distance between NPC and the target needed for the NPC to ignore the target and go back to spawn_  
-* bye reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", this what will be said when the player walks away from the NPC_  
+By entering the command alone, you will see what values are currently set.  Option values:
+* attackdistance XX => _Distance between NPC and the target needed for the NPC to ignore the target and go back to spawn_
+* bye reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", this what will be said when the player walks away from the NPC_
 * damageamount XXX => _Damage done by that NPC when he hits a player_
-* damagedistance XXX => _Min distance for the NPC to hit a player (3 is default, maybe 20-30 needed for snipers?)_  
-* damageinterval XXX =_> Interval in seconds that the NPC has to wait before attacking again_  
-* enable true/false =_> Enable (default) or disable the NPC without deleting it (notice that when you are editing a bot it will stay active until you say /npc_end)_  
-* radius XXX => _Radius in which the NPC will detect the player_  
-* health XXX =>_ To set the Health of the NPC (limited by rust to max 100)_  
-* hello reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", this what will be said when the player gets close to the NPC_  
-* hurt reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", set a message to tell the player when he hurts the NPC_  
-* hostile true/false_ => Set the NPC Hostile, will attack players on sight (radius is the sight limit)_  
-* invulnerable true/false => _To set the NPC invulnerable or not_  
-* kill reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", set a message to tell the player when he kills the NPC_  
-* kit reset/"KitName" => _To set the kit of this NPC, requires the **Kits plugin** (see below)_  
-* lootable true/false_ => Set if the NPC is lootable or not_  
-* maxdistance XXX => _Max distance from the spawn point that the NPC can run from (while attacking a player)_    
-* name "THE NAME" => _To set a name to the NPC_  
-* respawn true/false XX =>_ To set it to respawn on death after XX seconds, default is instant respawn_  
-* spawn new =>_ To set the new spawn location_  
-* speed XXX => _To set the NPC running speed (while chasing a player)_  
-* stopandtalk true/false XXX_ => To set if NPC should stop when a player talks to it, and if true for how much time.  
-* use reset/"TEXT" "TEXT2" etc => Dont forgot the \\", this what will be said when the player presses USE on the NPC_  
-* waypoints reset/"Waypoint list Name" => _To set waypoints of an NPC_  
-* hitchance float_ => chance to hit target_  
-* fireduration float _=> time to fire_  
-* reloadduration float _=> time to reload_  
-* defend true/false_ => attack if attacked_  
-* evade true/false_ => move if hit while being attacked_
-* evdist float_ => how far to move when hit (some randomization is built-in)_
-* allowsit_ => Find a chair nearby and sit on spawn_
-* band NUM_ => Set band number for external players_
-* follow_ => Follow the attacker as they are running out of range (default is true as with older versions)
-* sit_ => Make the NPC sit (toggles allowsit)_
-* stand_ => Make the NPC stand (toggles allowsit)_
-* needsAmmo true/false_ => needs to have ammo in inventory to shoot_  
-* hostiletowardsarmed => If true, the NPC will look in the players belt and if it finds any tools, weapons, traps or anything considered "bad" (the list of items is based on categories, but this can be customised/expanded upon) it will attack the player when they cross its interaction radius. If the NPC is supposed to raise the alarm, they will.
-* hostiletowardsarmedhard => If true, when performing the strip-search, the whole inventory is checked. Next step, making this work AFTER the player has crossed the NPC's interaction radius. At the moment, you can approach a strip-searching NPC with no weapon, take it out, and they will do nothing.
-* raiseAlarm => If true, the npc will send a distress "signal" (along with a chat message), limited to the number of NPCs that answer it (default 0 = no limit). A visibility check in the sphere of radius based on one of the existing distance values is performed. All the NPCs that the alarm raiser can see will receive this call, but not all of them will answer it. Hostile NPCs will only answer alarm calls from their team members (ignoring teams that are friends with their team). Non-hostile NPCs will answer the calls all friends. I might also implement an extra flag like "white knight" that will make an NPC answer every distress call, what do you think?
+* damagedistance XXX => _Min distance for the NPC to hit a player (3 is default, maybe 20-30 needed for snipers?)_
+* damageinterval XXX => _Interval in seconds that the NPC has to wait before attacking again_ 
+* enable true/false => _Enable (default) or disable the NPC without deleting it (notice that when you are editing a bot it will stay active until you say /npc_end)_
+* radius XXX => _Radius in which the NPC will detect the player_
+* health XXX => _To set the Health of the NPC (limited by rust to max 100)_
+* hello reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", this what will be said when the player gets close to the NPC_
+* hurt reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", set a message to tell the player when he hurts the NPC_
+* hostile true/false_ => Set the NPC Hostile, will attack players on sight (radius is the sight limit)_
+* ahostile true/false_ => Set the NPC Hostile, will attack animals on sight (radius is the sight limit)_
+* invulnerable true/false => _To set the NPC invulnerable or not_
+* kill reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", set a message to tell the player when he kills the NPC_
+* kit reset/"KitName" => _To set the kit of this NPC, requires the **Kits plugin** (see below)_
+* lootable true/false_ => Set if the NPC is lootable or not_
+* maxdistance XXX => _Max distance from the spawn point that the NPC can run from (while attacking a player)_
+* name "THE NAME" => _To set a name to the NPC_
+* respawn true/false XX =>_ To set it to respawn on death after XX seconds, default is instant respawn_
+* spawn new =>_ To set the new spawn location_
+* speed XXX => _To set the NPC running speed (while chasing a player)_
+* stopandtalk true/false XXX => _To set if NPC should stop when a player talks to it, and if true for how much time._
+* use reset/"TEXT" "TEXT2" etc => _Dont forgot the \\", this what will be said when the player presses USE on the NPC_
+* waypoints reset/"Waypoint list Name" => _To set waypoints of an NPC_
+* hitchance float => _chance to hit target_
+* fireduration float => _time to fire_
+* reloadduration float => _time to reload_
+* defend true/false => _attack if attacked_
+* evade true/false => _move if hit while being attacked_
+* evdist float => _how far to move when hit (some randomization is built-in)_
+* allowsit => _Find a chair nearby and sit on spawn_
+* band NUM => _Set band number for external players_
+* follow => _Follow the attacker as they are running out of range (default is true as with older versions)_
+* sit => _Make the NPC sit (toggles allowsit)_
+* stand => _Make the NPC stand (toggles allowsit)_
+* needsAmmo true/false => _needs to have ammo in inventory to shoot_
+* hostiletowardsarmed => _If true, the NPC will look in the players belt and, if it finds any tools, weapons, traps or anything considered "bad" (the list of items is based on categories, but this can be customised/expanded upon), it will attack the player when they cross its interaction radius. If the NPC is supposed to raise the alarm, they will._
+* hostiletowardsarmedhard => _If true, when performing the strip-search, the whole inventory is checked. Next step, making this work AFTER the player has crossed the NPC's interaction radius. At the moment, you can approach a strip-searching NPC with no weapon, take it out, and they will do nothing._
+* raiseAlarm => _If true, the npc will send a distress "signal" (along with a chat message), limited to the number of NPCs that answer it (default 0 = no limit). A visibility check in the sphere of radius based on one of the existing distance values is performed. All the NPCs that the alarm raiser can see will receive this call, but not all of them will answer it. Hostile NPCs will only answer alarm calls from their team members (ignoring teams that are friends with their team). Non-hostile NPCs will answer the calls all friends. I might also implement an extra flag like "white knight" that will make an NPC answer every distress call, what do you think?_
 
-NPC WAYPOINTS:  
-  You will need to make waypoints with the [Waypoints](https://remod.org/waypoints) plugin.  Create a set of waypoints with NAME and use /npc waypoints NAME when editing your NPC.  
+### NPC WAYPOINTS:
 
-NPC KIT:
+  You will need to make waypoints with the [Waypoints](https://remod.org/waypoints) plugin.  Create a set of waypoints with NAME and use /npc waypoints NAME when editing your NPC.
 
-  You will need the [Kits](https://umod.org/plugins/rust-kits#documentation) plugin.  Create a new kit with the kit plugin like you usually do, then:  
-/kit add NAME "random description" -authlevel2 (the level is set so NO players can use the kit, only admins and NPCs)  
-Then while editing the NPC do: /npc kit NAME (being the same name as the kit ofc)  
+### NPC KIT:
+
+  You will need the [Kits](https://umod.org/plugins/rust-kits#documentation) plugin.  Create a new kit with the kit plugin like you usually do, then:
+
+/kit add NAME "random description" -authlevel2 (the level is set so NO players can use the kit, only admins and NPCs)
+Then while editing the NPC do: /npc kit NAME (being the same name as the kit ofc)
   
-NPC ATTACK MOVEMENTS & PATHFINDING:  
+### NPC ATTACK MOVEMENTS & PATHFINDING:
   The Pathfinding is still not perfect, but it's getting there.  Currently, the main problem isn't really coming from the Pathfinding but from the HumanNPC plugin because of the way i wrote it, so I'll need to rewrite a part of the plugin to make better movements and player attacks.  
   You will need to download PathFinding for Rust to make the NPC attack movements work.  If the NPC can't find any paths for 5 seconds it will stop targetting the entity and go back to its spawn point with full health.  
 
