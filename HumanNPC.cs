@@ -17,13 +17,16 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.30", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.31", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
         //////////////////////////////////////////////////////
         ///  Fields
         //////////////////////////////////////////////////////
+        [PluginReference]
+        private Plugin NPCPlay;
+
         private static Collider[] colBuffer;
         private int playerLayer;
         private static int targetLayer;
@@ -4690,6 +4693,16 @@ namespace Oxide.Plugins
                 // Nikedemos
                 humanPlayer.StartAttackingEntity(player);
             }
+            if(humanPlayer.info.band > 0 && NPCPlay)
+            {
+                if((bool) NPCPlay?.Call("CanTriggerOn", Convert.ToInt32(humanPlayer.info.band)))
+                {
+#if DEBUG
+                    Puts("OnEnterNPC: Trying to start band!");
+#endif
+                    NPCPlay?.Call("BandPlay", Convert.ToInt32(humanPlayer.info.band));
+                }
+            }
         }
 
         //////////////////////////////////////////////////////////////////////////
@@ -4728,6 +4741,16 @@ namespace Oxide.Plugins
             if(humanPlayer.info.message_bye != null && humanPlayer.info.message_bye.Count > 0)
             {
                 SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_bye));
+            }
+            if(humanPlayer.info.band > 0 && NPCPlay)
+            {
+                if((bool) NPCPlay?.Call("CanTriggerOff", Convert.ToInt32(humanPlayer.info.band)))
+                {
+#if DEBUG
+                    Puts("OnEnterNPC: Trying to stop band!");
+#endif
+                    NPCPlay?.Call("BandStop", Convert.ToInt32(humanPlayer.info.band));
+                }
             }
         }
 
