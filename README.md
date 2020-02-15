@@ -139,12 +139,12 @@ Hooks were implemented to allow other plugins to interact with this one.  None o
 
 **Note:** All NPC have unique userIDs, (BasePlayer.userID), so you may easily save information of NPC by userID.
 
-Called when the NCP is getting hit
+Called when the NPC is getting hit
 ```csharp
  OnHitNPC(BasePlayer npc, HitInfo info)
 ```
 
-Called when the NCP is getting used (pressed use while aiming the NPC)
+Called when the NPC is getting used (pressed use while aiming the NPC)
 ```csharp
  OnUseNPC(BasePlayer npc, BasePlayer player)
 ```
