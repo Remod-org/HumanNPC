@@ -1,10 +1,13 @@
-# HumanNPC
+# HumanNPC for Rust (Remod version modded by RFC1920 and Nikedemos)
+
 Adds interactive human NPCs which can be modded by other plugins
 
 Adds customizable, human, non-player characters in-game. Make your cities a little bit more lively!
 
-Requires: Pathfinding
-Uses: Waypoints
+[Download](https://code.remod.org/HumanNPC.cs)
+
+Requires: [Pathfinding](https://www.remod.org/pathfinding), [Waypoints](https://www.remod.org/waypoints)
+Works with: Kits, GUIShop, [NPC Music Player](https://www.remod.org/npcplay), and a long list of other plugins...
 
 ## Features
 
