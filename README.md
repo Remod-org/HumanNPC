@@ -7,6 +7,7 @@ Adds customizable, human, non-player characters in-game. Make your cities a litt
 [Download](https://code.remod.org/HumanNPC.cs)
 
 Requires: [Pathfinding](https://www.remod.org/pathfinding), [Waypoints](https://www.remod.org/waypoints)
+
 Works with: Kits, GUIShop, [NPC Music Player](https://www.remod.org/npcplay), and a long list of other plugins...
 
 ## Features
