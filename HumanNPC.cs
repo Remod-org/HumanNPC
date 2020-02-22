@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.31", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.32", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -4587,6 +4587,137 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private ulong SpawnHumanNPC(Vector3 position, Quaternion currentRot, string name = "NPC", ulong clone = 0)
+        {
+            HumanPlayer hp = CreateNPC(position, currentRot, name, clone);
+            if(hp != null)
+            {
+                return hp.info.userid;
+            }
+            return 0;
+        }
+
+        private void RemoveHumanNPC(ulong npcid)
+        {
+            var npc = FindHumanPlayerByID(npcid);
+            npc.locomotion.Stand();
+            RemoveNPC(npcid);
+        }
+
+        private void GiveHumanNPC(ulong npcid, string itemname, string loc = "belt")
+        {
+#if DEBUG
+            Puts($"Attempting to add '{itemname}' to NPC {npcid.ToString()}, location {loc}");
+#endif
+            var npc = FindHumanPlayerByID(npcid);
+            Item item = ItemManager.CreateByName(itemname, 1, 0);
+
+            switch(loc)
+            {
+                case "belt":
+                    item.MoveToContainer(npc.player.inventory.containerBelt, -1, true);
+                    if(item.info.category == ItemCategory.Weapon) npc.EquipFirstWeapon();
+                    else if(item.info.category == ItemCategory.Fun) npc.EquipFirstInstrument();
+                    break;
+                case "wear":
+                default:
+                    item.MoveToContainer(npc.player.inventory.containerWear, -1, true);
+                    break;
+            }
+            //UpdateInventory(npc);
+            npc.player.inventory.ServerUpdate(0f);
+        }
+
+        private void SetHumanNPCInfo(ulong npcid, string info, string data)
+        {
+            var humanPlayer = FindHumanPlayerByID(npcid);
+            var npcEditor = humanPlayer.gameObject.AddComponent<NPCEditor>();
+            npcEditor.targetNPC = humanPlayer;
+
+            switch(info)
+            {
+                case "hostiletowardsarmed":
+                    npcEditor.targetNPC.info.hostileTowardsArmed = GetBoolValue(data);
+                    break;
+                case "band":
+                    npcEditor.targetNPC.info.band = Convert.ToSingle(data);
+                    break;
+                case "hostiletowardsarmedhard":
+                    npcEditor.targetNPC.info.hostileTowardsArmedHard = GetBoolValue(data);
+                    break;
+                case "name":
+                    npcEditor.targetNPC.info.displayName = data;
+                    break;
+                case "enable":
+                case "enabled":
+                    npcEditor.targetNPC.info.enable = GetBoolValue(data);
+                    break;
+                case "invulnerable":
+                case "invulnerability":
+                    npcEditor.targetNPC.info.invulnerability = GetBoolValue(data);
+                    break;
+                case "lootable":
+                    npcEditor.targetNPC.info.lootable = GetBoolValue(data);
+                    break;
+                case "hostile":
+                    npcEditor.targetNPC.info.hostile = GetBoolValue(data);
+                    break;
+                case "ahostile":
+                    npcEditor.targetNPC.info.ahostile = GetBoolValue(data);
+                    break;
+                case "defend":
+                    npcEditor.targetNPC.info.defend = GetBoolValue(data);
+                    break;
+                case "evade":
+                    npcEditor.targetNPC.info.evade = GetBoolValue(data);
+                    break;
+                case "evdist":
+                    npcEditor.targetNPC.info.evdist = Convert.ToSingle(data);
+                    break;
+                case "follow":
+                    npcEditor.targetNPC.info.follow = GetBoolValue(data);
+                    break;
+                case "followtime":
+                    npcEditor.targetNPC.info.followtime = Convert.ToSingle(data);
+                    break;
+                case "allowsit":
+                    npcEditor.targetNPC.info.allowsit = GetBoolValue(data);
+                    break;
+                case "allowride":
+                    npcEditor.targetNPC.info.allowride = GetBoolValue(data);
+                    break;
+                case "needsammo":
+                    npcEditor.targetNPC.info.needsAmmo = GetBoolValue(data);
+                    break;
+                case "health":
+                    npcEditor.targetNPC.info.health = Convert.ToSingle(data);
+                    break;
+                case "attackdistance":
+                    npcEditor.targetNPC.info.attackDistance = Convert.ToSingle(data);
+                    break;
+                case "damageamount":
+                    npcEditor.targetNPC.info.damageAmount = Convert.ToSingle(data);
+                    break;
+                case "damageinterval":
+                    npcEditor.targetNPC.info.damageInterval = Convert.ToSingle(data);
+                    break;
+                case "maxdistance":
+                    npcEditor.targetNPC.info.maxDistance = Convert.ToSingle(data);
+                    break;
+                case "damagedistance":
+                    npcEditor.targetNPC.info.damageDistance = Convert.ToSingle(data);
+                    break;
+                case "radius":
+                    npcEditor.targetNPC.info.collisionRadius = Convert.ToSingle(data);
+                    break;
+                case "speed":
+                    npcEditor.targetNPC.info.speed = Convert.ToSingle(data);
+                    break;
+            }
+
+            UnityEngine.Object.Destroy(npcEditor);
+        }
+
         private bool IsHumanNPC(BasePlayer player)
         {
             return player.GetComponent<HumanPlayer>() != null;
@@ -4608,6 +4739,7 @@ namespace Oxide.Plugins
 #endif
                 switch(npc.info.instrument)
                 {
+                    case "drumkit.deployed.static":
                     case "drumkit.deployed":
                     case "xylophone.deployed":
 #if DEBUG
@@ -4615,6 +4747,7 @@ namespace Oxide.Plugins
 #endif
                         npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
                         break;
+                    case "piano.deployed.static":
                     case "piano.deployed":
 #if DEBUG
                         Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");

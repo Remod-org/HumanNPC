@@ -183,6 +183,25 @@ Called when an NPC gets looted
  OnLootNPC(PlayerLoot loot, BaseEntity target, string npcId)
 ```
 
+Spawn an NPC; Returns new npcId
+```csharp
+ private ulong SpawnHumanNPC(Vector3 position, Quaternion currentRot, string name = "NPC", ulong clone = 0)
+```
+
+Remove an NPC;
+```csharp
+  private void RemoveHumanNPC(ulong npcid)
+```
+
+Give an item to an NPC by name
+```csharp
+  private void GiveHumanNPC(ulong npcid, string itemname, string loc = "belt")
+```
+
+Set NPC Info
+```csharp
+  private void SetHumanNPCInfo(ulong npcid, string info, string data)
+```
 ## Usages
 
 - Make your server more lively with NPCs that talk and interact a bit with players
