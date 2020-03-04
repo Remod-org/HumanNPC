@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.33", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.34", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -140,46 +140,35 @@ namespace Oxide.Plugins
 
             private void OnDestroy()
             {
-#if DEBUG
-                //Interface.Oxide.LogInfo("Destroy child: {0}", child?.name);
-#endif
                 CancelInvoke("UpdateTriggerArea");
             }
 
             private void UpdateTriggerArea()
             {
-//#if DEBUG
-//                Interface.Oxide.LogInfo($"UpdateTriggerArea() invoked for {npc.player.displayName}.");
-//#endif
-                var count = Physics.OverlapSphereNonAlloc(npc.player.transform.position, collisionRadius, colBuffer, targetLayer);
                 var collidePlayers = new HashSet<BasePlayer>();
                 var collideAnimals = new HashSet<BaseAnimalNPC>();
-                for(int i = 0; i < count; i++)
+
+                List<BasePlayer> players = new List<BasePlayer>();
+                List<BaseAnimalNPC> animals = new List<BaseAnimalNPC>();
+                Vis.Entities<BasePlayer>(npc.player.transform.position, collisionRadius, players, targetLayer);
+                Vis.Entities<BaseAnimalNPC>(npc.player.transform.position, collisionRadius, animals, targetLayer);
+
+                foreach(var player in players.Distinct().ToList())
                 {
-                    var collider = colBuffer[i];
-                    colBuffer[i] = null;
-                    var player = collider.GetComponentInParent<BasePlayer>();
-                    if(player != null)
-                    {
-                        if(player == npc.player) continue;
-                        collidePlayers.Add(player);
-                        if(triggerPlayers.Add(player)) OnEnterCollision(player);
-                        continue;
-                    }
-                    var animal = collider.GetComponentInParent<BaseAnimalNPC>();
-                    if(animal != null)
-                    {
+                    //if(player.GetComponentInParent<HumanPlayer>()) continue;
+                    collidePlayers.Add(player);
+                    if(triggerPlayers.Add(player)) OnEnterCollision(player);
 #if DEBUG
-                        Interface.Oxide.LogInfo("UpdateTriggerArea: {0}", animal.name);
+                    Interface.Oxide.LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, player.displayName);
 #endif
-                        collideAnimals.Add(animal);
-                        if(triggerAnimals.Add(animal)) OnEnterCollision(animal);
-                        continue;
-                    }
-                    //temp fix
-                    /*var ai = collider.GetComponentInParent<NPCAI>();
-                    if(ai != null && ai.decider.hatesHumans)
-                        npc.StartAttackingEntity(collider.GetComponentInParent<BaseNpc>());*/
+                }
+                foreach(var animal in animals.Distinct().ToList())
+                {
+                    collideAnimals.Add(animal);
+                    if(triggerAnimals.Add(animal)) OnEnterCollision(animal);
+#if DEBUG
+                    Interface.Oxide.LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, animal.ShortPrefabName);
+#endif
                 }
 
                 var removePlayers = new HashSet<BasePlayer>();
@@ -201,6 +190,7 @@ namespace Oxide.Plugins
                 foreach(BaseAnimalNPC animal in removeAnimals)
                 {
                     triggerAnimals.Remove(animal);
+                    OnLeaveCollision(animal);
                 }
             }
 
@@ -470,7 +460,7 @@ namespace Oxide.Plugins
                 // Find a place to sit
                 List<BaseChair> chairs = new List<BaseChair>();
                 List<StaticInstrument> pianos = new List<StaticInstrument>();
-                Vis.Entities<BaseChair>(npc.player.transform.position, 15f, chairs);
+                Vis.Entities<BaseChair>(npc.player.transform.position, 10f, chairs);
                 Vis.Entities<StaticInstrument>(npc.player.transform.position, 1f, pianos);
                 foreach(var mountable in chairs.Distinct().ToList())
                 {
@@ -672,43 +662,7 @@ namespace Oxide.Plugins
                 Interface.Oxide.LogInfo($"Sending input to horse: {message.buttons.ToString()}");
 #endif
                 horse.RiderInput(new InputState() { current = message }, npc.player);
-
-//                public enum BUTTON
-//                {
-//                    FORWARD = 2,
-//                    BACKWARD = 4,
-//                    LEFT = 8,
-//                    RIGHT = 16,
-//                    JUMP = 32,
-//                    DUCK = 64,
-//                    SPRINT = 128,
-//                    USE = 256,
-//                    FIRE_PRIMARY = 1024,
-//                    FIRE_SECONDARY = 2048,
-//                    RELOAD = 8192,
-//                    FIRE_THIRD = 134217728
-//                }
             }
-
-///            // From NPCApex
-//            public void Mount(BaseMountable mountable)
-//            {
-//                if(mountable.GetMounted() == null)
-//                {
-//                    mountable.AttemptMount(this);
-//                    mountable = base.GetMounted();
-//                    if(mountable)
-//                    {
-//                        this.NavAgent.enabled = false;
-//                        this.SetFact(NPCPlayerApex.Facts.IsMounted, 1, true, true);
-//                        if(!mountable.canWieldItems)
-//                        {
-//                            this.SetFact(NPCPlayerApex.Facts.CanNotWieldWeapon, 1, true, true);
-//                        }
-//                        base.CancelInvoke(new Action(this.RadioChatter));
-//                    }
-//                }
-//            }
 
             private float GetSpeed(float speed = -1)
             {
@@ -2989,6 +2943,8 @@ namespace Oxide.Plugins
             {
                 npc.player.KillMessage();
             }
+            save = true;
+            SaveData();
         }
 
         private bool hasAccess(BasePlayer player)
@@ -4729,31 +4685,38 @@ namespace Oxide.Plugins
         // NPC must have its band value set to a matching band
         private bool npcPlayNote(ulong npcid, int band, int note, int sharp, int octave, float noteval, float duration = 0.2f)
         {
-#if DEBUG
-            Puts($"npcPlayNote called for NPC {npcid.ToString()}");
-#endif
+//#if DEBUG
+//            Puts($"npcPlayNote called for NPC {npcid.ToString()}");
+//#endif
+            if(duration > 1) duration = 1;
             if(humannpcs.ContainsKey(npcid))
             {
                 var npc = FindHumanPlayerByID(npcid);
                 if(npc.info.band != band) return false;
-#if DEBUG
-                Puts($"Found NPC: {npc.info.displayName}");
-#endif
+//#if DEBUG
+//                Puts($"Found NPC: {npc.info.displayName}");
+//#endif
                 switch(npc.info.instrument)
                 {
                     case "drumkit.deployed.static":
                     case "drumkit.deployed":
                     case "xylophone.deployed":
-#if DEBUG
-                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
-#endif
+//#if DEBUG
+//                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
+//#endif
                         npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                        break;
+                    case "cowbell.deployed":
+//#if DEBUG
+//                        Puts($"More cowbell!");
+//#endif
+                        npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", 2, 0, 0, 1);
                         break;
                     case "piano.deployed.static":
                     case "piano.deployed":
-#if DEBUG
-                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
-#endif
+//#if DEBUG
+//                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
+//#endif
                         npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
                         timer.Once(duration, () =>
                         {
@@ -4761,9 +4724,9 @@ namespace Oxide.Plugins
                         });
                         break;
                     default:
-#if DEBUG
-                        Puts($"Playing note {note.ToString()} on held instrument {npc.info.instrument}.");
-#endif
+//#if DEBUG
+//                        Puts($"Playing note {note.ToString()} on held instrument {npc.info.instrument}.");
+//#endif
                         npc.itool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
                         timer.Once(duration, () =>
                         {
@@ -4828,14 +4791,14 @@ namespace Oxide.Plugins
                 // Nikedemos
                 humanPlayer.StartAttackingEntity(player);
             }
-            if(humanPlayer.info.band > 0 && NPCPlay)
+            else if(humanPlayer.info.band > 0 && NPCPlay)
             {
                 if((bool) NPCPlay?.Call("CanTriggerOn", Convert.ToInt32(humanPlayer.info.band)))
                 {
 #if DEBUG
                     Puts("OnEnterNPC: Trying to start band!");
 #endif
-                    NPCPlay?.Call("BandPlay", Convert.ToInt32(humanPlayer.info.band));
+                    NPCPlay?.Call("BandPlay", Convert.ToInt32(humanPlayer.info.band), true);
                 }
             }
         }
