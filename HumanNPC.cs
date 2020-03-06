@@ -3899,8 +3899,12 @@ namespace Oxide.Plugins
                 return;
             }
 
-            SendReply(player, "==== NPCs ====");
-            foreach(var pair in humannpcs) SendReply(player, $"{pair.Key} - {pair.Value.displayName} - {pair.Value.spawnInfo.ShortString()} {(pair.Value.enable ? "" : "- Disabled")}");
+            string message = "==== NPCs ====\n";
+            foreach(var pair in humannpcs)
+            {
+                message += $"{pair.Key} - {pair.Value.displayName} - {pair.Value.spawnInfo.ShortString()} {(pair.Value.enable ? "" : "- Disabled")}";
+            }
+            SendReply(player, message);
         }
 
         [ChatCommand("npc")]
