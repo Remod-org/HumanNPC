@@ -4851,7 +4851,7 @@ namespace Oxide.Plugins
 #if DEBUG
                     Puts("OnEnterNPC: Trying to stop band!");
 #endif
-                    NPCPlay?.Call("BandStop", Convert.ToInt32(humanPlayer.info.band));
+                    NPCPlay?.Call("BandStop", Convert.ToInt32(humanPlayer.info.band), true);
                 }
             }
         }
