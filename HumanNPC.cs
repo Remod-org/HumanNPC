@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.34", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.35", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -158,9 +158,9 @@ namespace Oxide.Plugins
                     //if(player.GetComponentInParent<HumanPlayer>()) continue;
                     collidePlayers.Add(player);
                     if(triggerPlayers.Add(player)) OnEnterCollision(player);
-#if DEBUG
-                    Interface.Oxide.LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, player.displayName);
-#endif
+//#if DEBUG
+//                    Interface.Oxide.LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, player.displayName);
+//#endif
                 }
                 foreach(var animal in animals.Distinct().ToList())
                 {
@@ -459,9 +459,9 @@ namespace Oxide.Plugins
                 npc.Invoke("AllowMove",0);
                 // Find a place to sit
                 List<BaseChair> chairs = new List<BaseChair>();
-                List<StaticInstrument> pianos = new List<StaticInstrument>();
+                List<StaticInstrument> pidrxy = new List<StaticInstrument>();
                 Vis.Entities<BaseChair>(npc.player.transform.position, 10f, chairs);
-                Vis.Entities<StaticInstrument>(npc.player.transform.position, 1f, pianos);
+                Vis.Entities<StaticInstrument>(npc.player.transform.position, 1f, pidrxy);
                 foreach(var mountable in chairs.Distinct().ToList())
                 {
 #if DEBUG
@@ -485,7 +485,7 @@ namespace Oxide.Plugins
                     sitting = true;
                     break;
                 }
-                foreach(var mountable in pianos.Distinct().ToList())
+                foreach(var mountable in pidrxy.Distinct().ToList())
                 {
 #if DEBUG
                     Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to sit at instrument");
@@ -2491,11 +2491,6 @@ namespace Oxide.Plugins
         void OnNewSave(string strFilename)
         {
             // Relocate NPCs to Vector0
-//            foreach(KeyValuePair<ulong, HumanNPCInfo> pair in humannpcs)
-//            {
-//                if(!pair.Value.enable) continue;
-//                pair.Value.spawnInfo = new SpawnInfo(new Vector3(), new Quaternion());
-//            }
             foreach(var thenpc in storedData.HumanNPCs)
             {
                 thenpc.spawnInfo = new SpawnInfo(new Vector3(), new Quaternion());
@@ -3902,7 +3897,7 @@ namespace Oxide.Plugins
             string message = "==== NPCs ====\n";
             foreach(var pair in humannpcs)
             {
-                message += $"{pair.Key} - {pair.Value.displayName} - {pair.Value.spawnInfo.ShortString()} {(pair.Value.enable ? "" : "- Disabled")}";
+                message += $"{pair.Key} - {pair.Value.displayName} - {pair.Value.spawnInfo.ShortString()} {(pair.Value.enable ? "" : "- Disabled")}\n";
             }
             SendReply(player, message);
         }
@@ -4549,6 +4544,11 @@ namespace Oxide.Plugins
 
         private ulong SpawnHumanNPC(Vector3 position, Quaternion currentRot, string name = "NPC", ulong clone = 0)
         {
+            // Try to avoid duplicating players via this path.  If they are already in the data file, cool.
+            foreach(KeyValuePair<ulong, HumanNPCInfo> pair in humannpcs)
+            {
+                if(pair.Value.displayName == name && clone == 0) return pair.Key;
+            }
             HumanPlayer hp = CreateNPC(position, currentRot, name, clone);
             if(hp != null)
             {
@@ -4673,6 +4673,15 @@ namespace Oxide.Plugins
                 case "speed":
                     npcEditor.targetNPC.info.speed = Convert.ToSingle(data);
                     break;
+                case "spawn":
+                    Quaternion currentRot = new Quaternion(0f, 0f, 0f, 0f);
+                    data = data.Replace("(","").Replace(")","");
+                    string[] xyz = data.Split(',');
+                    Puts($"Attempting to move NPC to {xyz[0]} {xyz[1]} {xyz[2]}");
+                    var pv = new Vector3(float.Parse(xyz[0]), float.Parse(xyz[1]), float.Parse(xyz[2]));
+                    var newSpawn = new SpawnInfo(pv, currentRot);
+                    npcEditor.targetNPC.info.spawnInfo = newSpawn;
+                    break;
             }
             save = true;
             RefreshNPC(npcEditor.targetNPC.player, true);
@@ -4680,47 +4689,153 @@ namespace Oxide.Plugins
             SaveData();
         }
 
+        private string GetHumanNPCInfo(ulong npcid, string info)
+        {
+            if(humannpcs.ContainsKey(npcid)) return null;
+            var humanPlayer = FindHumanPlayerByID(npcid);
+
+            switch(info)
+            {
+                case "hostiletowardsarmed":
+                    return humanPlayer.info.hostileTowardsArmed.ToString();
+                    break;
+                case "hostiletowardsarmedhard":
+                    return humanPlayer.info.hostileTowardsArmedHard.ToString();
+                    break;
+                case "raisealarm":
+                    return humanPlayer.info.raiseAlarm.ToString();
+                    break;
+                case "name":
+                    return humanPlayer.info.displayName;
+                    break;
+                case "enable":
+                case "enabled":
+                    return humanPlayer.info.enable.ToString();
+                    break;
+                case "invulnerable":
+                case "invulnerability":
+                    return humanPlayer.info.invulnerability.ToString();
+                    break;
+                case "lootable":
+                    return humanPlayer.info.lootable.ToString();
+                    break;
+                case "hostile":
+                    return humanPlayer.info.hostile.ToString();
+                    break;
+                case "ahostile":
+                    return humanPlayer.info.ahostile.ToString();
+                    break;
+                case "defend":
+                    return humanPlayer.info.defend.ToString();
+                    break;
+                case "evade":
+                    return humanPlayer.info.evade.ToString();
+                    break;
+                case "evdist":
+                    return humanPlayer.info.evade.ToString();
+                    break;
+                case "follow":
+                    return humanPlayer.info.follow.ToString();
+                    break;
+                case "followtime":
+                    return humanPlayer.info.followtime.ToString();
+                    break;
+                case "allowsit":
+                    return humanPlayer.info.allowsit.ToString();
+                    break;
+                case "allowride":
+                    return humanPlayer.info.allowride.ToString();
+                    break;
+                case "needsammo":
+                    return humanPlayer.info.needsAmmo.ToString();
+                    break;
+                case "health":
+                    return humanPlayer.info.health.ToString();
+                    break;
+                case "attackdistance":
+                    return humanPlayer.info.attackDistance.ToString();
+                    break;
+                case "damageamount":
+                    return humanPlayer.info.damageAmount.ToString();
+                    break;
+                case "damageinterval":
+                    return humanPlayer.info.damageInterval.ToString();
+                    break;
+                case "maxdistance":
+                    return humanPlayer.info.maxDistance.ToString();
+                    break;
+                case "damagedistance":
+                    return humanPlayer.info.damageDistance.ToString();
+                    break;
+                case "radius":
+                    return humanPlayer.info.collisionRadius.ToString();
+                    break;
+                case "respawn":
+                    return humanPlayer.info.respawnSeconds.ToString();
+                    break;
+                case "spawn":
+                    return humanPlayer.info.spawnInfo.String();
+                    break;
+                case "speed":
+                    return humanPlayer.info.speed.ToString();
+                    break;
+                case "stopandtalk":
+                    return humanPlayer.info.stopandtalk.ToString();
+                    break;
+                case "stopandtalkSeconds":
+                    return humanPlayer.info.stopandtalkSeconds.ToString();
+                    break;
+                case "hitchance":
+                    return humanPlayer.info.hitchance.ToString();
+                    break;
+                case "reloadduration":
+                    return humanPlayer.info.reloadDuration.ToString();
+                    break;
+                case "band":
+                    return humanPlayer.info.band.ToString();
+                    break;
+                default:
+                    return null;
+                    break;
+            }
+        }
+
         private bool IsHumanNPC(BasePlayer player)
         {
+#if DEBUG
+            Puts($"IsHumanNPC called for {player.userID}");
+#endif
             return player.GetComponent<HumanPlayer>() != null;
+        }
+        private bool IsHumanNPC(ulong npcid)
+        {
+#if DEBUG
+            Puts($"IsHumanNPC called for {npcid.ToString()}");
+#endif
+            if(humannpcs.ContainsKey(npcid)) return true;
+            return false;
         }
 
         // Hook to play note based on NPC ID and other values from external sequencing app
         // NPC must have its band value set to a matching band
         private bool npcPlayNote(ulong npcid, int band, int note, int sharp, int octave, float noteval, float duration = 0.2f)
         {
-//#if DEBUG
-//            Puts($"npcPlayNote called for NPC {npcid.ToString()}");
-//#endif
-            if(duration > 1) duration = 1;
             if(humannpcs.ContainsKey(npcid))
             {
                 var npc = FindHumanPlayerByID(npcid);
                 if(npc.info.band != band) return false;
-//#if DEBUG
-//                Puts($"Found NPC: {npc.info.displayName}");
-//#endif
                 switch(npc.info.instrument)
                 {
                     case "drumkit.deployed.static":
                     case "drumkit.deployed":
                     case "xylophone.deployed":
-//#if DEBUG
-//                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
-//#endif
                         npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
                         break;
                     case "cowbell.deployed":
-//#if DEBUG
-//                        Puts($"More cowbell!");
-//#endif
                         npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", 2, 0, 0, 1);
                         break;
                     case "piano.deployed.static":
                     case "piano.deployed":
-//#if DEBUG
-//                        Puts($"Playing note {note.ToString()} on static instrument {npc.info.instrument}.");
-//#endif
                         npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
                         timer.Once(duration, () =>
                         {
@@ -4728,9 +4843,6 @@ namespace Oxide.Plugins
                         });
                         break;
                     default:
-//#if DEBUG
-//                        Puts($"Playing note {note.ToString()} on held instrument {npc.info.instrument}.");
-//#endif
                         npc.itool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
                         timer.Once(duration, () =>
                         {
