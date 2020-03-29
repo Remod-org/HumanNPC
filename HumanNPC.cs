@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.35", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.36", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -4596,16 +4596,27 @@ namespace Oxide.Plugins
 
             switch(info)
             {
+                case "kit":
+                case "spawnkit":
+                    npcEditor.targetNPC.info.spawnkit = data;
+                    break;
                 case "hostiletowardsarmed":
+                case "hostileTowardsArmed":
                     npcEditor.targetNPC.info.hostileTowardsArmed = GetBoolValue(data);
                     break;
                 case "band":
                     npcEditor.targetNPC.info.band = Convert.ToSingle(data);
                     break;
                 case "hostiletowardsarmedhard":
+                case "hostileTowardsArmedHard":
                     npcEditor.targetNPC.info.hostileTowardsArmedHard = GetBoolValue(data);
                     break;
+                case "raisealarm":
+                case "raiseAlarm":
+                    npcEditor.targetNPC.info.raiseAlarm = GetBoolValue(data);
+                    break;
                 case "name":
+                case "displayName":
                     npcEditor.targetNPC.info.displayName = data;
                     break;
                 case "enable":
@@ -4647,6 +4658,7 @@ namespace Oxide.Plugins
                     npcEditor.targetNPC.info.allowride = GetBoolValue(data);
                     break;
                 case "needsammo":
+                case "needsAmmo":
                     npcEditor.targetNPC.info.needsAmmo = GetBoolValue(data);
                     break;
                 case "health":
@@ -4691,21 +4703,29 @@ namespace Oxide.Plugins
 
         private string GetHumanNPCInfo(ulong npcid, string info)
         {
-            if(humannpcs.ContainsKey(npcid)) return null;
+            if(!humannpcs.ContainsKey(npcid)) return null;
             var humanPlayer = FindHumanPlayerByID(npcid);
 
             switch(info)
             {
+                case "kit":
+                case "spawnkit":
+                    return humanPlayer.info.spawnkit;
+                    break;
                 case "hostiletowardsarmed":
+                case "hostileTowardsArmed":
                     return humanPlayer.info.hostileTowardsArmed.ToString();
                     break;
                 case "hostiletowardsarmedhard":
+                case "hostileTowardsArmedHard":
                     return humanPlayer.info.hostileTowardsArmedHard.ToString();
                     break;
                 case "raisealarm":
+                case "raiseAlarm":
                     return humanPlayer.info.raiseAlarm.ToString();
                     break;
                 case "name":
+                case "displayName":
                     return humanPlayer.info.displayName;
                     break;
                 case "enable":
@@ -4747,6 +4767,7 @@ namespace Oxide.Plugins
                     return humanPlayer.info.allowride.ToString();
                     break;
                 case "needsammo":
+                case "needsAmmo":
                     return humanPlayer.info.needsAmmo.ToString();
                     break;
                 case "health":
@@ -4774,7 +4795,8 @@ namespace Oxide.Plugins
                     return humanPlayer.info.respawnSeconds.ToString();
                     break;
                 case "spawn":
-                    return humanPlayer.info.spawnInfo.String();
+                case "spawnInfo":
+                    return humanPlayer.info.spawnInfo.position.ToString();
                     break;
                 case "speed":
                     return humanPlayer.info.speed.ToString();
