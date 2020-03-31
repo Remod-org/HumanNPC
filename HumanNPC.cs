@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.36", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.37", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -4066,7 +4066,7 @@ namespace Oxide.Plugins
                         if(npcEditor.targetNPC.info.message_bye == null || npcEditor.targetNPC.info.message_bye.Count == 0)
                             message = "No bye message set yet";
                         else
-                            message = $"This NPC will say bye: {npcEditor.targetNPC.info.message_bye.Count} difference messages ";
+                            message = $"This NPC will say bye: {npcEditor.targetNPC.info.message_bye.Count} different messages ";
                         break;
                     case "use":
                         if(npcEditor.targetNPC.info.message_use == null || npcEditor.targetNPC.info.message_use.Count == 0)
@@ -4181,7 +4181,7 @@ namespace Oxide.Plugins
                         }
                         else
                         {
-                            message += $"\twill say bye: {npcEditor.targetNPC.info.message_bye.Count} difference messages\n";
+                            message += $"\twill say bye: {npcEditor.targetNPC.info.message_bye.Count} different messages\n";
                         }
                         if(npcEditor.targetNPC.info.message_use == null || npcEditor.targetNPC.info.message_use.Count == 0)
                         {
@@ -4588,7 +4588,29 @@ namespace Oxide.Plugins
             npc.player.inventory.ServerUpdate(0f);
         }
 
-        private void SetHumanNPCInfo(ulong npcid, string info, string data)
+        public static Quaternion StringToQuaternion(string sQuaternion)
+        {
+            //Interface.Oxide.LogInfo($"Converting {sQuaternion} to Quaternion.");
+            // Remove the parentheses
+            if(sQuaternion.StartsWith("(") && sQuaternion.EndsWith(")"))
+            {
+                sQuaternion = sQuaternion.Substring(1, sQuaternion.Length - 2);
+            }
+
+            // split the items
+            string[] sArray = sQuaternion.Split(',');
+
+            // store as a Vector3
+            Quaternion result = new Quaternion(
+                float.Parse(sArray[0]),
+                float.Parse(sArray[1]),
+                float.Parse(sArray[2]),
+                float.Parse(sArray[3])
+            );
+
+            return result;
+        }
+        private void SetHumanNPCInfo(ulong npcid, string info, string data, string rot = null)
         {
             var humanPlayer = FindHumanPlayerByID(npcid);
             var npcEditor = humanPlayer.gameObject.AddComponent<NPCEditor>();
@@ -4686,14 +4708,30 @@ namespace Oxide.Plugins
                     npcEditor.targetNPC.info.speed = Convert.ToSingle(data);
                     break;
                 case "spawn":
-                    Quaternion currentRot = new Quaternion(0f, 0f, 0f, 0f);
+                    Quaternion currentRot = StringToQuaternion(rot);
                     data = data.Replace("(","").Replace(")","");
                     string[] xyz = data.Split(',');
-                    Puts($"Attempting to move NPC to {xyz[0]} {xyz[1]} {xyz[2]}");
+                    //Puts($"Attempting to move NPC to {xyz[0]} {xyz[1]} {xyz[2]}");
                     var pv = new Vector3(float.Parse(xyz[0]), float.Parse(xyz[1]), float.Parse(xyz[2]));
                     var newSpawn = new SpawnInfo(pv, currentRot);
                     npcEditor.targetNPC.info.spawnInfo = newSpawn;
                     break;
+                case "hello":
+                    npcEditor.targetNPC.info.message_hello = data == "reset" ? new List<string>() : new List<string>() { data };
+                    break;
+                case "bye":
+                    npcEditor.targetNPC.info.message_bye = data == "reset" ? new List<string>() : new List<string>() { data };
+                    break;
+                case "hurt":
+                    npcEditor.targetNPC.info.message_hurt = data == "reset" ? new List<string>() : new List<string>() { data };
+                    break;
+                case "use":
+                    npcEditor.targetNPC.info.message_use = data == "reset" ? new List<string>() : new List<string>() { data };
+                    break;
+                case "kill":
+                    npcEditor.targetNPC.info.message_kill = data == "reset" ? new List<string>() : new List<string>() { data };
+                    break;
+
             }
             save = true;
             RefreshNPC(npcEditor.targetNPC.player, true);
@@ -4815,6 +4853,36 @@ namespace Oxide.Plugins
                     break;
                 case "band":
                     return humanPlayer.info.band.ToString();
+                    break;
+                case "hello":
+                    if(humanPlayer.info.message_hello == null || (humanPlayer.info.message_hello.Count == 0))
+                        return "No hello message set yet";
+                    else
+                        return $"This NPC will say hi: {humanPlayer.info.message_hello.Count} different messages";
+                    break;
+                case "bye":
+                    if(humanPlayer.info.message_bye == null || humanPlayer.info.message_bye.Count == 0)
+                        return "No bye message set yet";
+                    else
+                        return $"This NPC will say bye: {humanPlayer.info.message_bye.Count} different messages";
+                    break;
+                case "use":
+                    if(humanPlayer.info.message_use == null || humanPlayer.info.message_use.Count == 0)
+                        return "No bye message set yet";
+                    else
+                        return $"This NPC will say bye: {humanPlayer.info.message_use.Count} different messages";
+                    break;
+                case "hurt":
+                    if(humanPlayer.info.message_hurt == null || humanPlayer.info.message_hurt.Count == 0)
+                        return "No hurt message set yet";
+                    else
+                        return $"This NPC will say ouch: {humanPlayer.info.message_hurt.Count} different messages";
+                    break;
+                case "kill":
+                    if(humanPlayer.info.message_kill == null || humanPlayer.info.message_kill.Count == 0)
+                        return "No kill message set yet";
+                    else
+                        return $"This NPC will say a death message: {humanPlayer.info.message_kill.Count} different messages";
                     break;
                 default:
                     return null;
