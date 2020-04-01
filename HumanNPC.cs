@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.37", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.38", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -49,6 +49,7 @@ namespace Oxide.Plugins
         static int terrainMask = LayerMask.GetMask(new[] { "Terrain", "Tree" });
 
         private bool save;
+        private bool relocateZero = true;
         private StoredData storedData;
         private DynamicConfigFile data;
         private Vector3 eyesPosition;
@@ -2351,6 +2352,7 @@ namespace Oxide.Plugins
             ammoTypes = new Dictionary<string, AmmoTypes>();
             weaponProjectile = new Dictionary<string, BaseProjectile>();
             CheckCfg("Chat", ref chat);
+            CheckCfg("Relocate to Zero at Wipe", ref relocateZero);
             SaveConfig();
 
             // Nikedemos
@@ -2490,6 +2492,7 @@ namespace Oxide.Plugins
         ///////////////////////////////////////////////////////
         void OnNewSave(string strFilename)
         {
+            if(!relocateZero) return;
             // Relocate NPCs to Vector0
             foreach(var thenpc in storedData.HumanNPCs)
             {
