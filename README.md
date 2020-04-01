@@ -214,15 +214,10 @@ Set NPC Info
 
 ```json
 {
-  "Weapon To FX": {
-    "pistol_eoka": "fx/weapons/vm_eoka_pistol/attack",
-    "pistol_revolver": "fx/weapons/vm_revolver/attack",
-    "rifle_ak": "fx/weapons/vm_ak47u/attack",
-    "rifle_bolt": "fx/weapons/vm_bolt_rifle/attack",
-    "shotgun_pump": "fx/weapons/vm_waterpipe_shotgun/attack",
-    "shotgun_waterpipe": "fx/weapons/vm_waterpipe_shotgun/attack",
-    "smg_thompson": "fx/weapons/vm_thompson/attack"
-  }
+
+{
+  "Chat": "<color=#FA58AC>{0}:</color> ",
+  "Relocate to Zero at Wipe": true
 }
 ```
 
