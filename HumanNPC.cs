@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 // Requires: PathFinding
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.38", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.39", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -2189,6 +2189,7 @@ namespace Oxide.Plugins
             public float hitchance;
             public float reloadDuration;
             public bool needsAmmo;
+            public bool dropWeapon;
             public bool defend;
             public bool evade;
             public bool follow;
@@ -2223,6 +2224,7 @@ namespace Oxide.Plugins
                 hostile = false;
                 ahostile = false;
                 needsAmmo = true;
+                dropWeapon = true;
                 respawn = true;
                 respawnSeconds = 60;
                 spawnInfo = new SpawnInfo(position, rotation);
@@ -2295,6 +2297,7 @@ namespace Oxide.Plugins
                     message_hurt = message_hurt?.ToList(),
                     message_kill = message_kill?.ToList(),
                     needsAmmo = needsAmmo,
+                    dropWeapon = dropWeapon,
                     hitchance = hitchance,
                     reloadDuration = reloadDuration,
                     protections = protections?.ToDictionary(p => p.Key, p => p.Value),
@@ -2602,18 +2605,16 @@ namespace Oxide.Plugins
             }
         }
 
-        //private void OnItemDropped(Item item, BaseEntity entity)
-//        void OnPlayerDropActiveItem(BasePlayer player, Item item)
-//        {
-//            var humanPlayer = player.GetComponent<HumanPlayer>();
-//            if(humanPlayer?.info == null) return;
-//            Puts($"Item dropped by NPC {player.displayName}");
-//
-//            //var entity = item.GetHeldEntity();
-//            HeldEntity heldEntity = humanPlayer.player.GetHeldEntity();
-//            heldEntity.SetHeld(false);
-//            item.DoRemove();
-//        }
+        private bool CanDropActiveItem(BasePlayer player)
+        {
+            var humanPlayer = player.GetComponent<HumanPlayer>();
+            if(humanPlayer?.info == null) return true;
+#if DEBUG
+            Puts($"Item dropped by NPC {player.displayName}");
+#endif
+            if(humanPlayer.info.dropWeapon) return true;
+            return false;
+        }
 
         //////////////////////////////////////////////////////
         /// OnEntityDeath(BaseEntity entity, HitInfo hitinfo)
@@ -4018,6 +4019,9 @@ namespace Oxide.Plugins
                     case "needsammo":
                         message = $"This NPC needsAmmo is set to: {npcEditor.targetNPC.info.needsAmmo}";
                         break;
+                    case "dropweapon":
+                        message = $"This NPC dropWeapon is set to: {npcEditor.targetNPC.info.dropWeapon}";
+                        break;
                     case "health":
                         message = $"This NPC Initial health is set to: {npcEditor.targetNPC.info.health}";
                         break;
@@ -4125,6 +4129,7 @@ namespace Oxide.Plugins
                             + $"\tsitting: {npcEditor.targetNPC.locomotion.sitting}\n"
                             + $"\tisRiding: {npcEditor.targetNPC.locomotion.isRiding}\n"
                             + $"\tneedsAmmo: {npcEditor.targetNPC.info.needsAmmo}\n"
+                            + $"\tdropWeapon: {npcEditor.targetNPC.info.dropWeapon}\n"
                             + $"\tinitial health: {npcEditor.targetNPC.info.health}\n"
                             + $"\tmax attack distance: {npcEditor.targetNPC.info.attackDistance}\n"
                             + $"\tdamage amount: {npcEditor.targetNPC.info.damageAmount}\n"
@@ -4287,6 +4292,9 @@ namespace Oxide.Plugins
                     break;
                 case "needsammo":
                     npcEditor.targetNPC.info.needsAmmo = GetBoolValue(args[1]);
+                    break;
+                case "dropweapon":
+                    npcEditor.targetNPC.info.dropWeapon = GetBoolValue(args[1]);
                     break;
                 case "health":
                     npcEditor.targetNPC.info.health = Convert.ToSingle(args[1]);
@@ -4616,6 +4624,7 @@ namespace Oxide.Plugins
         private void SetHumanNPCInfo(ulong npcid, string info, string data, string rot = null)
         {
             var humanPlayer = FindHumanPlayerByID(npcid);
+            if(humanPlayer == null) return;
             var npcEditor = humanPlayer.gameObject.AddComponent<NPCEditor>();
             npcEditor.targetNPC = humanPlayer;
 
@@ -4685,6 +4694,10 @@ namespace Oxide.Plugins
                 case "needsammo":
                 case "needsAmmo":
                     npcEditor.targetNPC.info.needsAmmo = GetBoolValue(data);
+                    break;
+                case "dropweapon":
+                case "dropWeapon":
+                    npcEditor.targetNPC.info.dropWeapon = GetBoolValue(data);
                     break;
                 case "health":
                     npcEditor.targetNPC.info.health = Convert.ToSingle(data);
@@ -4810,6 +4823,10 @@ namespace Oxide.Plugins
                 case "needsammo":
                 case "needsAmmo":
                     return humanPlayer.info.needsAmmo.ToString();
+                    break;
+                case "dropweapon":
+                case "dropWeapon":
+                    return humanPlayer.info.dropWeapon.ToString();
                     break;
                 case "health":
                     return humanPlayer.info.health.ToString();
