@@ -1,4 +1,4 @@
-#define DEBUG
+//#define DEBUG
 // Requires: PathFinding
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
