@@ -8,6 +8,7 @@ using Oxide.Core.Plugins;
 using Oxide.Game.Rust;
 using Rust;
 using Facepunch;
+using Network;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -17,7 +18,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.39", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.40", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -528,6 +529,52 @@ namespace Oxide.Plugins
                     mounted.SetFlag(BaseEntity.Flags.Busy, false, false);
                     sitting = false;
                 }
+            }
+
+            public void Disappear()
+            {
+#if DEBUG
+                Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to disappear...");
+#endif
+                npc.player._limitedNetworking = true;
+                var connections = Net.sv.connections.Where(con => con.connected && con.isAuthenticated && con.player is BasePlayer && con.player != npc.player).ToList();
+                npc.player.OnNetworkSubscribersLeave(connections);
+
+                if(npc.player.children != null)
+                {
+                    var children = Pool.GetList<BaseEntity>();
+                    try
+                    {
+                        foreach (var child in npc.player.children)
+                            GetChildren(child, children);
+                        foreach (var childent in children)
+                            childent.OnNetworkSubscribersLeave(connections);
+                    }
+                    finally
+                    {
+                        Pool.Free(ref children);
+                    }
+                }
+            }
+
+            public void Reappear()
+            {
+#if DEBUG
+                Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to reappear...");
+#endif
+                npc.player._limitedNetworking = false;
+                npc.player.UpdatePlayerCollider(true);
+                npc.player.SendNetworkUpdate();
+                npc.player.GetHeldEntity()?.SendNetworkUpdate();
+            }
+
+            private static void GetChildren(BaseEntity entity, List<BaseEntity> childslist)
+            {
+                if (entity == null) return;
+                if (!childslist.Contains(entity)) childslist.Add(entity);
+                if (entity.children == null) return;
+                foreach (var subchild in entity.children)
+                    GetChildren(subchild, childslist);
             }
 
             public void Ride()
@@ -1209,6 +1256,14 @@ namespace Oxide.Plugins
             {
                 player = GetComponent<BasePlayer>();
                 protection = ScriptableObject.CreateInstance<ProtectionProperties>();
+                if(info.visible)
+                {
+                    locomotion?.Reappear();
+                }
+                else
+                {
+                    locomotion?.Disappear();
+                }
             }
 
             public void SetInfo(HumanNPCInfo info, bool update = false)
@@ -2185,6 +2240,7 @@ namespace Oxide.Plugins
             public bool stopandtalk;
             public float stopandtalkSeconds;
             public bool enable;
+            public bool visible;
             public bool lootable;
             public float hitchance;
             public float reloadDuration;
@@ -2238,6 +2294,7 @@ namespace Oxide.Plugins
                 stopandtalk = true;
                 stopandtalkSeconds = 3;
                 enable = true;
+                visible = true;
                 lootable = true;
                 defend = false;
                 evade = false;
@@ -2833,6 +2890,7 @@ namespace Oxide.Plugins
             humanPlayer.UpdateHealth(info);
             cache[userid] = humanPlayer;
             UpdateInventory(humanPlayer);
+            if(!info.visible) humanPlayer.locomotion.Disappear();
             Interface.Oxide.CallHook("OnNPCRespawn", newPlayer);
             Puts($"Spawned NPC: {humanPlayer.player.displayName}/{userid}");
         }
@@ -3982,6 +4040,9 @@ namespace Oxide.Plugins
                     case "enabled":
                         message = $"This NPC enabled: {npcEditor.targetNPC.info.enable}";
                         break;
+                    case "visible":
+                        message = $"This NPC visible is set to: {npcEditor.targetNPC.info.visible}";
+                        break;
                     case "invulnerable":
                     case "invulnerability":
                         message = $"This NPC invulnerability is set to: {npcEditor.targetNPC.info.invulnerability}";
@@ -4115,6 +4176,7 @@ namespace Oxide.Plugins
                     case "info":
                         message = $" {npcEditor.targetNPC.info.displayName}\n"
                             + $"\tenabled: {npcEditor.targetNPC.info.enable}\n"
+                            + $"\tvisible: {npcEditor.targetNPC.info.visible}\n"
                             + $"\tinvulnerability: {npcEditor.targetNPC.info.invulnerability}\n"
                             + $"\tlootable: {npcEditor.targetNPC.info.lootable}\n"
                             + $"\thostility (player): {npcEditor.targetNPC.info.hostile}\n"
@@ -4255,6 +4317,9 @@ namespace Oxide.Plugins
                 case "enable":
                 case "enabled":
                     npcEditor.targetNPC.info.enable = GetBoolValue(args[1]);
+                    break;
+                case "visible":
+                    npcEditor.targetNPC.info.visible = GetBoolValue(args[1]);
                     break;
                 case "invulnerable":
                 case "invulnerability":
@@ -4657,6 +4722,9 @@ namespace Oxide.Plugins
                 case "enabled":
                     npcEditor.targetNPC.info.enable = GetBoolValue(data);
                     break;
+                case "visible":
+                    npcEditor.targetNPC.info.visible = GetBoolValue(data);
+                    break;
                 case "invulnerable":
                 case "invulnerability":
                     npcEditor.targetNPC.info.invulnerability = GetBoolValue(data);
@@ -4785,6 +4853,9 @@ namespace Oxide.Plugins
                 case "enable":
                 case "enabled":
                     return humanPlayer.info.enable.ToString();
+                    break;
+                case "visible":
+                    return humanPlayer.info.visible.ToString();
                     break;
                 case "invulnerable":
                 case "invulnerability":
