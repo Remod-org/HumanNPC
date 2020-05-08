@@ -849,7 +849,7 @@ namespace Oxide.Plugins
                 if(Time.realtimeSinceStartup - startedFollow > npc.info.followtime)
                 {
 #if DEBUG
-                    Interface.Oxide.LogInfo($"ProcessFollow() Took too long...}");
+                    Interface.Oxide.LogInfo($"ProcessFollow() Took too long...");
 #endif
                     npc.EndFollowingEntity(noPath < 5);
                     return;
@@ -2959,8 +2959,9 @@ namespace Oxide.Plugins
         private bool TryGetPlayerView(BasePlayer player, out Quaternion viewAngle)
         {
             viewAngle = new Quaternion(0f, 0f, 0f, 0f);
-            if(player.serverInput?.current == null) return false;
-            viewAngle = Quaternion.Euler(player.serverInput.current.aimAngles);
+            if (player.input.state.current == null) return false;
+
+            viewAngle = Quaternion.Euler(player.input.state.current.aimAngles);
             return true;
         }
 
