@@ -1,4 +1,4 @@
-//#define DEBUG
+#define DEBUG
 // Requires: PathFinding
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.39", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.41", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -56,7 +56,7 @@ namespace Oxide.Plugins
         private string chat = "<color=#FA58AC>{0}:</color> ";
 
         [PluginReference]
-        private Plugin Kits, Waypoints, Vanish;
+        private Plugin Kits, Waypoints, Vanish, Pathfinding;
 
         private static PathFinding PathFinding;
 
@@ -296,7 +296,7 @@ namespace Oxide.Plugins
                             else
                             {
 #if DEBUG
-                                Interface.Oxide.LogInfo("Blocked waypoint? {0} for {1}", pair.Key, npc.player.displayName);
+                                Interface.Oxide.LogInfo("Blocked waypoint? {0} for {1}, speed {2}", pair.Key, npc.player.displayName, pair.Value);
 #endif
                                 //cachedWaypoints.Add(new WaypointInfo(pair.Key, speed));
                             }
@@ -360,7 +360,6 @@ namespace Oxide.Plugins
                     startedFollow = Time.realtimeSinceStartup;
                     ProcessFollow(targetPosition);
                 }
-
 
                 if(StartPos != EndPos) Execute_Move();
                 if(waypointDone >= 1f) secondsTaken = 0f;
@@ -798,7 +797,7 @@ namespace Oxide.Plugins
                     bool validAttack = Vector3.Distance(LastPos, npc.player.transform.position) < npc.info.maxDistance && noPath < 5;
 
 #if DEBUG
-                    Interface.Oxide.LogInfo("  Entity: Type {0}, alive {1}, valid {2}, distance {3}", entity.GetType().FullName, entity.IsAlive(), validAttack, c_attackDistance.ToString());
+                    Interface.Oxide.LogInfo("  Entity: Type {0}, alive {1}, valid {2}, distance {3}, noPath {4}", entity.GetType().FullName, entity.IsAlive(), validAttack, c_attackDistance.ToString(), noPath.ToString());
 #endif
                     if(validAttack)
                     {
@@ -823,6 +822,7 @@ namespace Oxide.Plugins
                         if(GetSpeed() <= 0)
                         {
                             npc.EndAttackingEntity();
+                            npc.EndFollowingEntity();
                         }
                         else if(!npc.info.follow)
                         {
@@ -834,6 +834,7 @@ namespace Oxide.Plugins
                     }
                     else
                     {
+                        npc.EndFollowingEntity();
                         npc.EndAttackingEntity();
                     }
                 }
@@ -1294,9 +1295,12 @@ namespace Oxide.Plugins
                 locomotion.shouldMove = true;
                 if(trigger)
                 {
-                    Interface.Oxide.CallHook("OnNPCStopTarget", player, locomotion.followEntity);
+                    Interface.Oxide.CallHook("OnNPCStopFollow", player, locomotion.followEntity);
                 }
                 locomotion.followEntity = null;
+                //locomotion.returning = true;
+                locomotion.GetBackToLastPos();
+                SetActive(0);
             }
 
             public void EndGo(bool trigger = true)
@@ -2185,6 +2189,7 @@ namespace Oxide.Plugins
             public bool stopandtalk;
             public float stopandtalkSeconds;
             public bool enable;
+            public bool persistent;
             public bool lootable;
             public float hitchance;
             public float reloadDuration;
@@ -2238,6 +2243,7 @@ namespace Oxide.Plugins
                 stopandtalk = true;
                 stopandtalkSeconds = 3;
                 enable = true;
+                persistent = true;
                 lootable = true;
                 defend = false;
                 evade = false;
@@ -2381,6 +2387,11 @@ namespace Oxide.Plugins
                 case "y":
                 case "on":
                     return true;
+                case "false":
+                case "0":
+                case "n":
+                case "no":
+                case "off":
                 default:
                     return false;
             }
@@ -2405,7 +2416,8 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
-            var HumanNPCMono = UnityEngine.Object.FindObjectsOfType<HumanPlayer>();
+            //var HumanNPCMono = UnityEngine.Object.FindObjectsOfType<HumanPlayer>();
+            var HumanNPCMono = Resources.FindObjectsOfTypeAll<HumanPlayer>();
             foreach(var mono in HumanNPCMono)
             {
                 PrintWarning($"Deleting {mono.info.displayName} ({mono.info.userid})");
@@ -2496,6 +2508,7 @@ namespace Oxide.Plugins
         void OnNewSave(string strFilename)
         {
             if(!relocateZero) return;
+            //if (ConVar.Server.levelurl != "") return; // Skip custom maps which may persist month over month.
             // Relocate NPCs to Vector0
             foreach(var thenpc in storedData.HumanNPCs)
             {
@@ -2802,7 +2815,8 @@ namespace Oxide.Plugins
             List<ulong> npcspawned = new List<ulong>();
             foreach(KeyValuePair<ulong, HumanNPCInfo> pair in humannpcs)
             {
-                if(!pair.Value.enable) continue;
+                if (!pair.Value.enable) continue;
+                if (!pair.Value.persistent) continue;
                 npcspawned.Add(pair.Key);
                 SpawnOrRefresh(pair.Key);
             }
@@ -2959,9 +2973,8 @@ namespace Oxide.Plugins
         private bool TryGetPlayerView(BasePlayer player, out Quaternion viewAngle)
         {
             viewAngle = new Quaternion(0f, 0f, 0f, 0f);
-            if (player.input.state.current == null) return false;
-
-            viewAngle = Quaternion.Euler(player.input.state.current.aimAngles);
+            if(player.serverInput?.current == null) return false;
+            viewAngle = Quaternion.Euler(player.serverInput.current.aimAngles);
             return true;
         }
 
@@ -4658,6 +4671,9 @@ namespace Oxide.Plugins
                 case "enabled":
                     npcEditor.targetNPC.info.enable = GetBoolValue(data);
                     break;
+                case "persistent":
+                    npcEditor.targetNPC.info.persistent = GetBoolValue(data);
+                    break;
                 case "invulnerable":
                 case "invulnerability":
                     npcEditor.targetNPC.info.invulnerability = GetBoolValue(data);
@@ -4766,155 +4782,115 @@ namespace Oxide.Plugins
                 case "kit":
                 case "spawnkit":
                     return humanPlayer.info.spawnkit;
-                    break;
                 case "hostiletowardsarmed":
                 case "hostileTowardsArmed":
                     return humanPlayer.info.hostileTowardsArmed.ToString();
-                    break;
                 case "hostiletowardsarmedhard":
                 case "hostileTowardsArmedHard":
                     return humanPlayer.info.hostileTowardsArmedHard.ToString();
-                    break;
                 case "raisealarm":
                 case "raiseAlarm":
                     return humanPlayer.info.raiseAlarm.ToString();
-                    break;
                 case "name":
                 case "displayName":
                     return humanPlayer.info.displayName;
-                    break;
                 case "enable":
                 case "enabled":
                     return humanPlayer.info.enable.ToString();
-                    break;
                 case "invulnerable":
                 case "invulnerability":
                     return humanPlayer.info.invulnerability.ToString();
-                    break;
                 case "lootable":
                     return humanPlayer.info.lootable.ToString();
-                    break;
                 case "hostile":
                     return humanPlayer.info.hostile.ToString();
-                    break;
                 case "ahostile":
                     return humanPlayer.info.ahostile.ToString();
-                    break;
                 case "defend":
                     return humanPlayer.info.defend.ToString();
-                    break;
                 case "evade":
                     return humanPlayer.info.evade.ToString();
-                    break;
                 case "evdist":
                     return humanPlayer.info.evade.ToString();
-                    break;
                 case "follow":
                     return humanPlayer.info.follow.ToString();
-                    break;
                 case "followtime":
                     return humanPlayer.info.followtime.ToString();
-                    break;
                 case "allowsit":
                     return humanPlayer.info.allowsit.ToString();
-                    break;
                 case "allowride":
                     return humanPlayer.info.allowride.ToString();
-                    break;
                 case "needsammo":
                 case "needsAmmo":
                     return humanPlayer.info.needsAmmo.ToString();
-                    break;
                 case "dropweapon":
                 case "dropWeapon":
                     return humanPlayer.info.dropWeapon.ToString();
-                    break;
                 case "health":
                     return humanPlayer.info.health.ToString();
-                    break;
                 case "attackdistance":
                     return humanPlayer.info.attackDistance.ToString();
-                    break;
                 case "damageamount":
                     return humanPlayer.info.damageAmount.ToString();
-                    break;
                 case "damageinterval":
                     return humanPlayer.info.damageInterval.ToString();
-                    break;
                 case "maxdistance":
                     return humanPlayer.info.maxDistance.ToString();
-                    break;
                 case "damagedistance":
                     return humanPlayer.info.damageDistance.ToString();
-                    break;
                 case "radius":
                     return humanPlayer.info.collisionRadius.ToString();
-                    break;
                 case "respawn":
                     return humanPlayer.info.respawnSeconds.ToString();
-                    break;
                 case "spawn":
                 case "spawnInfo":
                     return humanPlayer.info.spawnInfo.position.ToString();
-                    break;
                 case "speed":
                     return humanPlayer.info.speed.ToString();
-                    break;
                 case "stopandtalk":
                     return humanPlayer.info.stopandtalk.ToString();
-                    break;
                 case "stopandtalkSeconds":
                     return humanPlayer.info.stopandtalkSeconds.ToString();
-                    break;
                 case "hitchance":
                     return humanPlayer.info.hitchance.ToString();
-                    break;
                 case "reloadduration":
                     return humanPlayer.info.reloadDuration.ToString();
-                    break;
                 case "band":
                     return humanPlayer.info.band.ToString();
-                    break;
                 case "hello":
                     if(humanPlayer.info.message_hello == null || (humanPlayer.info.message_hello.Count == 0))
                         return "No hello message set yet";
                     else
                         return $"This NPC will say hi: {humanPlayer.info.message_hello.Count} different messages";
-                    break;
                 case "bye":
                     if(humanPlayer.info.message_bye == null || humanPlayer.info.message_bye.Count == 0)
                         return "No bye message set yet";
                     else
                         return $"This NPC will say bye: {humanPlayer.info.message_bye.Count} different messages";
-                    break;
                 case "use":
                     if(humanPlayer.info.message_use == null || humanPlayer.info.message_use.Count == 0)
                         return "No bye message set yet";
                     else
                         return $"This NPC will say bye: {humanPlayer.info.message_use.Count} different messages";
-                    break;
                 case "hurt":
                     if(humanPlayer.info.message_hurt == null || humanPlayer.info.message_hurt.Count == 0)
                         return "No hurt message set yet";
                     else
                         return $"This NPC will say ouch: {humanPlayer.info.message_hurt.Count} different messages";
-                    break;
                 case "kill":
                     if(humanPlayer.info.message_kill == null || humanPlayer.info.message_kill.Count == 0)
                         return "No kill message set yet";
                     else
                         return $"This NPC will say a death message: {humanPlayer.info.message_kill.Count} different messages";
-                    break;
                 default:
                     return null;
-                    break;
             }
         }
 
         private bool IsHumanNPC(BasePlayer player)
         {
 #if DEBUG
-            Puts($"IsHumanNPC called for {player.userID}");
+//            Puts($"IsHumanNPC called for {player.userID}");
 #endif
             return player.GetComponent<HumanPlayer>() != null;
         }
@@ -4940,25 +4916,37 @@ namespace Oxide.Plugins
                     case "drumkit.deployed.static":
                     case "drumkit.deployed":
                     case "xylophone.deployed":
-                        npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                        if (npc.ktool != null)
+                        {
+                            npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                        }
                         break;
                     case "cowbell.deployed":
-                        npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", 2, 0, 0, 1);
+                        if (npc.ktool != null)
+                        {
+                            npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", 2, 0, 0, 1);
+                        }
                         break;
                     case "piano.deployed.static":
                     case "piano.deployed":
-                        npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
-                        timer.Once(duration, () =>
+                        if (npc.ktool != null)
                         {
-                            npc.ktool.ClientRPC<int, int, int, float>(null, "Client_StopNote", note, sharp, octave, noteval);
-                        });
+                            npc.ktool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                            timer.Once(duration, () =>
+                            {
+                                npc.ktool.ClientRPC<int, int, int, float>(null, "Client_StopNote", note, sharp, octave, noteval);
+                            });
+                        }
                         break;
                     default:
-                        npc.itool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
-                        timer.Once(duration, () =>
+                        if (npc.itool != null)
                         {
-                            npc.itool.ClientRPC<int, int, int, float>(null, "Client_StopNote", note, sharp, octave, noteval);
-                        });
+                            npc.itool.ClientRPC<int, int, int, float>(null, "Client_PlayNote", note, sharp, octave, noteval);
+                            timer.Once(duration, () =>
+                            {
+                                npc.itool.ClientRPC<int, int, int, float>(null, "Client_StopNote", note, sharp, octave, noteval);
+                            });
+                        }
                         break;
                 }
                 return true;
@@ -5325,13 +5313,25 @@ namespace Oxide.Plugins
         }*/
         //////////////////////////////////////////////////////
         ///  OnNPCStopTarget(BasePlayer npc, BaseEntity target)
-        ///  Called when an NPC stops targetting
+        ///  Called when an NPC stops targeting
         ///  no return;
         //////////////////////////////////////////////////////
         void OnNPCStopTarget(BasePlayer npc, BaseEntity target)
         {
 #if DEBUG
             Puts("OnNPCStopTarget() called...");
+#endif
+        }
+
+        //////////////////////////////////////////////////////
+        ///  OnNPCStopFollow(BasePlayer npc, BaseEntity target)
+        ///  Called when an NPC stops following
+        ///  no return;
+        //////////////////////////////////////////////////////
+        void OnNPCStopFollow(BasePlayer npc, BaseEntity target)
+        {
+#if DEBUG
+            Puts("OnNPCStopFollow() called...");
 #endif
         }
 
