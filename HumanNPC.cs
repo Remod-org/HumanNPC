@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.41", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.42", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -375,7 +375,7 @@ namespace Oxide.Plugins
                 //npc.player.eyes.position = nextPos + new Vector3(0, 1.6f, 0);
                 var newEyesPos = nextPos + new Vector3(0, 1.6f, 0);
                 npc.player.eyes.position.Set(newEyesPos.x, newEyesPos.y, newEyesPos.z);
-                npc.player.UpdatePlayerCollider(true);
+                npc.player.EnablePlayerCollider();
 
                 npc.player.modelState.onground = !IsSwimming();
             }
