@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.44", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.45", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -4582,10 +4582,25 @@ namespace Oxide.Plugins
             return 0;
         }
 
+        private void RemoveHumanNPCByName(string name)
+        {
+            Puts($"Removing NPC by name {name}");
+            ulong npcid = 0;
+            foreach (var npc in humannpcs)
+            {
+                if(npc.Value.displayName == name)
+                {
+                    npcid = npc.Value.userid;
+                }
+            }
+            if (npcid == 0) return;
+            RemoveNPC(npcid);
+        }
+
         private void RemoveHumanNPC(ulong npcid)
         {
             var npc = FindHumanPlayerByID(npcid);
-            npc.locomotion.Stand();
+            if(npc != null) npc.locomotion.Stand();
             RemoveNPC(npcid);
         }
 
@@ -4596,6 +4611,13 @@ namespace Oxide.Plugins
 #endif
             var npc = FindHumanPlayerByID(npcid);
             Item item = ItemManager.CreateByName(itemname, 1, 0);
+            if (npc.player.inventory == null)
+            {
+#if DEBUG
+                Puts($"No attached player object for {npcid.ToString()}");
+#endif
+                return;
+            }
 
             switch(loc)
             {
