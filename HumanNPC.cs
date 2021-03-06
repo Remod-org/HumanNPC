@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.45", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.46", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -151,8 +151,8 @@ namespace Oxide.Plugins
 
                 List<BasePlayer> players = new List<BasePlayer>();
                 List<BaseAnimalNPC> animals = new List<BaseAnimalNPC>();
-                Vis.Entities<BasePlayer>(npc.player.transform.position, collisionRadius, players, targetLayer);
-                Vis.Entities<BaseAnimalNPC>(npc.player.transform.position, collisionRadius, animals, targetLayer);
+                Vis.Entities(npc.player.transform.position, collisionRadius, players, targetLayer);
+                Vis.Entities(npc.player.transform.position, collisionRadius, animals, targetLayer);
 
                 foreach(var player in players.Distinct().ToList())
                 {
@@ -460,8 +460,8 @@ namespace Oxide.Plugins
                 // Find a place to sit
                 List<BaseChair> chairs = new List<BaseChair>();
                 List<StaticInstrument> pidrxy = new List<StaticInstrument>();
-                Vis.Entities<BaseChair>(npc.player.transform.position, 10f, chairs);
-                Vis.Entities<StaticInstrument>(npc.player.transform.position, 1f, pidrxy);
+                Vis.Entities(npc.player.transform.position, 10f, chairs);
+                Vis.Entities(npc.player.transform.position, 1f, pidrxy);
                 foreach(var mountable in chairs.Distinct().ToList())
                 {
 #if DEBUG
@@ -540,7 +540,7 @@ namespace Oxide.Plugins
                 {
                     // Find a place to sit
                     List<RidableHorse> horses = new List<RidableHorse>();
-                    Vis.Entities<RidableHorse>(npc.player.transform.position, 15f, horses);
+                    Vis.Entities(npc.player.transform.position, 15f, horses);
                     foreach(var mountable in horses.Distinct().ToList())
                     {
 #if DEBUG
@@ -2568,6 +2568,17 @@ namespace Oxide.Plugins
             }
         }
 
+        object OnTeamInvite(BasePlayer inviter, BasePlayer target)
+        {
+            var humanPlayer = target.GetComponent<HumanPlayer>();
+            if (humanPlayer != null)
+            {
+                SendReply(inviter, "Cannot invite NPC to team");
+                return true;
+            }
+            return null;
+        }
+
         //////////////////////////////////////////////////////
         /// OnEntityTakeDamage(BaseCombatEntity entity, HitInfo hitinfo)
         /// Called when an entity gets attacked (can be anything, building, animal, player ..)
@@ -2842,13 +2853,15 @@ namespace Oxide.Plugins
             var newPlayer = GameManager.server.CreateEntity("assets/prefabs/player/player.prefab", info.spawnInfo.position, info.spawnInfo.rotation).ToPlayer();
             var humanPlayer = newPlayer.gameObject.AddComponent<HumanPlayer>();
             humanPlayer.SetInfo(info);
+            newPlayer.currentTeam = 32768;
+            newPlayer.TeamUpdate();
             newPlayer.Spawn();
 
             humanPlayer.UpdateHealth(info);
             cache[userid] = humanPlayer;
             UpdateInventory(humanPlayer);
             Interface.Oxide.CallHook("OnNPCRespawn", newPlayer);
-            Puts($"Spawned NPC: {humanPlayer.player.displayName}/{userid}");
+            //Puts($"Spawned NPC: {humanPlayer.player.displayName}/{userid}");
         }
 
         private void UpdateInventory(HumanPlayer humanPlayer)
@@ -3056,7 +3069,7 @@ namespace Oxide.Plugins
                 return true;
             }
             List<BasePlayer> nearPlayers = new List<BasePlayer>();
-            Vis.Entities<BasePlayer>(pos, npc.info.maxDistance, nearPlayers, playerMask);
+            Vis.Entities(pos, npc.info.maxDistance, nearPlayers, playerMask);
             foreach(var player in nearPlayers)
             {
                 if(player == target)
@@ -4551,6 +4564,13 @@ namespace Oxide.Plugins
         // NPC HOOKS:
         // will call ALL plugins
         //////////////////////////////////////////////////////
+        private BasePlayer GetHumanNPCByNameOrId(string userid)
+        {
+            HumanPlayer humanPlayer;
+            humanPlayer = FindHumanPlayer(userid);
+            Puts($"Found {humanPlayer.player.displayName}");
+            return humanPlayer.player;
+        }
         private List<ulong> HumanNPCs()=>humannpcs.Keys.ToList<ulong>();
 
         private string HumanNPCname(ulong userid)
@@ -5110,7 +5130,7 @@ namespace Oxide.Plugins
             else
             {
                 List<BasePlayer> nearPlayers = new List<BasePlayer>();
-                Vis.Entities<BasePlayer>(caller.transform.position, humanPlayerComponent.info.maxDistance, nearPlayers, playerMask);
+                Vis.Entities(caller.transform.position, humanPlayerComponent.info.maxDistance, nearPlayers, playerMask);
                 foreach (var responder in nearPlayers)
                 {
                     raised = false;
