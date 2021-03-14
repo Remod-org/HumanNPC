@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.46", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.47", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -3933,6 +3933,32 @@ namespace Oxide.Plugins
             SendReply(player, message);
         }
 
+        [ChatCommand("npc_nk")]
+        private void cmdChatNPCKitFix(BasePlayer player, string command, string[] args)
+        {
+            if(!hasAccess(player)) return;
+            if(humannpcs.Count == 0)
+            {
+                return;
+            }
+
+            KitsConfigData kitStoredData = Config.ReadObject<KitsConfigData>("oxide/config/Kits.json");
+            foreach (var pair in humannpcs)
+            {
+                Puts($"Found NPC: {pair.Key.ToString()}.  Fixing Kits menu.");
+
+                kitStoredData.NPCKitMenu.Add(pair.Key, new KitsConfigData.NPCKit
+                {
+                    Description = pair.Value.displayName,
+                    Kits = new List<string>() { null }
+                });
+            }
+
+            DynamicConfigFile data = new DynamicConfigFile("oxide/config/Kits.json");
+            data.WriteObject(kitStoredData, true);
+            SendReply(player, "Reload Kits plugin");
+        }
+
         [ChatCommand("npc")]
         private void cmdChatNPC(BasePlayer player, string command, string[] args)
         {
@@ -5468,6 +5494,115 @@ namespace Oxide.Plugins
             {
                 return objectType == typeof(SpawnInfo);
             }
+        }
+
+        // Classes for fixing Kits config for OnUseNPC
+        class KitsUI
+        {
+            public static string Color(string hexColor, float alpha)
+            {
+                if (hexColor.StartsWith("#"))
+                    hexColor = hexColor.TrimStart('#');
+
+                int red = int.Parse(hexColor.Substring(0, 2), NumberStyles.AllowHexSpecifier);
+                int green = int.Parse(hexColor.Substring(2, 2), NumberStyles.AllowHexSpecifier);
+                int blue = int.Parse(hexColor.Substring(4, 2), NumberStyles.AllowHexSpecifier);
+
+                return $"{(double)red / 255} {(double)green / 255} {(double)blue / 255} {alpha}";
+            }
+        }
+        private class KitsConfigData
+        {
+            [JsonProperty(PropertyName = "Currency used for purchase costs (Scrap, Economics, ServerRewards)")]
+            public string Currency { get; set; }
+
+            [JsonProperty(PropertyName = "Log kits given")]
+            public bool LogKitsGiven { get; set; }
+
+            [JsonProperty(PropertyName = "Wipe player data when the server is wiped")]
+            public bool WipeData { get; set; }
+
+            [JsonProperty(PropertyName = "Use the Kits UI menu")]
+            public bool UseUI { get; set; }
+
+            [JsonProperty(PropertyName = "Allow players to toggle auto-kits on spawn")]
+            public bool AllowAutoToggle { get; set; }
+
+            [JsonProperty(PropertyName = "Show kits with permissions assigned to players without the permission")]
+            public bool ShowPermissionKits { get; set; }
+
+            [JsonProperty(PropertyName = "Autokits ordered by priority")]
+            public List<string> AutoKits { get; set; }
+
+            [JsonProperty(PropertyName = "Post wipe cooldowns (kit name | seconds)")]
+            public Hash<string, int> WipeCooldowns { get; set; }
+
+            [JsonProperty(PropertyName = "Parameters used when pasting a building via CopyPaste")]
+            public string[] CopyPasteParams { get; set; }
+
+            [JsonProperty(PropertyName = "UI Options")]
+            public MenuOptions Menu { get; set; }
+
+            [JsonProperty(PropertyName = "Kit menu items when opened via HumanNPC (NPC user ID | Items)")]
+            public Hash<ulong, NPCKit> NPCKitMenu { get; set; }
+
+            public class MenuOptions
+            {
+                [JsonProperty(PropertyName = "Panel Color")]
+                public UIColor Panel { get; set; }
+
+                [JsonProperty(PropertyName = "Disabled Color")]
+                public UIColor Disabled { get; set; }
+
+                [JsonProperty(PropertyName = "Color 1")]
+                public UIColor Color1 { get; set; }
+
+                [JsonProperty(PropertyName = "Color 2")]
+                public UIColor Color2 { get; set; }
+
+                [JsonProperty(PropertyName = "Color 3")]
+                public UIColor Color3 { get; set; }
+
+                [JsonProperty(PropertyName = "Color 4")]
+                public UIColor Color4 { get; set; }
+
+                [JsonProperty(PropertyName = "Default kit image URL")]
+                public string DefaultKitURL { get; set; }
+
+                [JsonProperty(PropertyName = "View kit icon URL")]
+                public string MagnifyIconURL { get; set; }
+            }
+
+            public class UIColor
+            {
+                public string Hex { get; set; }
+                public float Alpha { get; set; }
+
+                [JsonIgnore]
+                private string _color;
+
+                [JsonIgnore]
+                public string Get
+                {
+                    get
+                    {
+                        if (string.IsNullOrEmpty(_color))
+                            _color = KitsUI.Color(Hex, Alpha);
+                        return _color;
+                    }
+                }
+            }
+
+            public class NPCKit
+            {
+                [JsonProperty(PropertyName = "The list of kits that can be claimed from this NPC")]
+                public List<string> Kits { get; set; }
+
+                [JsonProperty(PropertyName = "The NPC's response to opening their kit menu")]
+                public string Description { get; set; }
+            }
+
+            public VersionNumber Version { get; set; }
         }
     }
 }
