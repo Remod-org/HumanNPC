@@ -3942,11 +3942,14 @@ namespace Oxide.Plugins
                 return;
             }
 
+            bool foundNew = false;
             KitsConfigData kitStoredData = Config.ReadObject<KitsConfigData>("oxide/config/Kits.json");
             foreach (var pair in humannpcs)
             {
-                Puts($"Found NPC: {pair.Key.ToString()}.  Fixing Kits menu.");
+                if (kitStoredData.NPCKitMenu.ContainsKey(pair.Key)) continue;
 
+                foundNew = true;
+                Puts($"Found NPC: {pair.Key.ToString()}.  Fixing Kits menu.");
                 kitStoredData.NPCKitMenu.Add(pair.Key, new KitsConfigData.NPCKit
                 {
                     Description = pair.Value.displayName,
@@ -3954,9 +3957,12 @@ namespace Oxide.Plugins
                 });
             }
 
-            DynamicConfigFile data = new DynamicConfigFile("oxide/config/Kits.json");
-            data.WriteObject(kitStoredData, true);
-            SendReply(player, "Reload Kits plugin");
+            if (foundNew)
+            {
+                DynamicConfigFile data = new DynamicConfigFile("oxide/config/Kits.json");
+                data.WriteObject(kitStoredData, true);
+                SendReply(player, "Reload Kits plugin");
+            }
         }
 
         [ChatCommand("npc")]
