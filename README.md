@@ -10,6 +10,20 @@ Requires: [Pathfinding](https://www.remod.org/pathfinding), [Waypoints](https://
 
 Works with: Kits, GUIShop, [NPC Music Player](https://www.remod.org/npcplay), and a long list of other plugins...
 
+Due to recent changes with Kits 4.0.X, two somewhat temporary commands were introduced:
+
+  - 0.3.48: Added /npc_rk -- Removes ALL NPCs from the Kits.json config.  Requires reloading of Kits plugin.
+
+    The above was done to undo the command below.  In Kits 4.0.9, the logic was reversed from 4.0.8.
+
+  - 0.3.47: Added /npc_nk -- Adds ALL NPCs to the Kits.json config.  Requires reloading of the Kits plugin.
+
+    In Kits 4.0.8, if an NPC was not listed, the Kits menu would appear on USE.  This command was added to populate that list.
+
+Until these are removed, they will persist to either:
+  1. Add all NPCs to the Kits.json (npc_nk)
+  2. Remove all NPCs from the Kits.json (npc_rk)
+
 ## Features
 
 - Fully configurable
