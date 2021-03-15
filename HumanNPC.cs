@@ -17,7 +17,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.47", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.48", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -3932,6 +3932,36 @@ namespace Oxide.Plugins
             }
             SendReply(player, message);
         }
+
+        [ChatCommand("npc_rk")]
+        private void cmdChatNPCKitRem(BasePlayer player, string command, string[] args)
+        {
+            if(!hasAccess(player)) return;
+            if(humannpcs.Count == 0)
+            {
+                return;
+            }
+
+            bool foundNew = false;
+            KitsConfigData kitStoredData = Config.ReadObject<KitsConfigData>("oxide/config/Kits.json");
+            foreach (var pair in humannpcs)
+            {
+                if (kitStoredData.NPCKitMenu.ContainsKey(pair.Key))
+                {
+                    Puts($"Found NPC: {pair.Key.ToString()}.  Removing from Kits menu.");
+                    foundNew = true;
+                    kitStoredData.NPCKitMenu.Remove(pair.Key);
+                }
+            }
+
+            if (foundNew)
+            {
+                DynamicConfigFile data = new DynamicConfigFile("oxide/config/Kits.json");
+                data.WriteObject(kitStoredData, true);
+                SendReply(player, "Reload Kits plugin");
+            }
+        }
+
 
         [ChatCommand("npc_nk")]
         private void cmdChatNPCKitFix(BasePlayer player, string command, string[] args)
