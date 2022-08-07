@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.50", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.51", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -2749,15 +2749,16 @@ namespace Oxide.Plugins
             }
         }
 
-        private bool CanDropActiveItem(BasePlayer player)
+        private object CanDropActiveItem(BasePlayer player)
         {
             HumanPlayer humanPlayer = player.GetComponent<HumanPlayer>();
             if (humanPlayer?.info == null)
             {
-                return true;
+                return null;
             }
             if (debug) Puts($"Item dropped by NPC {player.displayName}");
-            return humanPlayer.info.dropWeapon;
+            if (!humanPlayer.info.dropWeapon) return true;
+            return null;
         }
 
         //////////////////////////////////////////////////////
