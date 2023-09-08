@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.51", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.52", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -458,7 +458,7 @@ namespace Oxide.Plugins
 
             public bool IsSwimming()
             {
-                return WaterLevel.Test(npc.player.transform.position + new Vector3(0, 0.65f, 0));
+                return WaterLevel.Test(npc.player.transform.position + new Vector3(0, 0.65f, 0), true, true);
             }
 
             private bool CanSit()
@@ -1129,7 +1129,8 @@ namespace Oxide.Plugins
                         reloading = false;
                         if (npc.info.needsAmmo)
                         {
-                            weapon.primaryMagazine.Reload(npc.player);
+                            //weapon.primaryMagazine.Reload(npc.player);
+                            weapon.primaryMagazine.TryReload(null);
                             npc.player.inventory.ServerUpdate(0f);
                         }
                         else
@@ -1174,7 +1175,7 @@ namespace Oxide.Plugins
                 }
                 if (attackitem.uid != npc.player.svActiveItemID)
                 {
-                    npc.SetActive(attackitem.uid);
+                    npc.SetActive((uint)attackitem.uid.Value);
                 }
 
                 float dmg = npc.info.damageAmount * UnityEngine.Random.Range(0.8f, 1.2f);
@@ -1392,7 +1393,7 @@ namespace Oxide.Plugins
                     Item item = GetFirstWeaponItem();
                     if (item != null)
                     {
-                        SetActive(item.uid);
+                        SetActive((uint)item.uid.Value);
                     }
 
                     locomotion.attackEntity = entity;
@@ -1545,7 +1546,8 @@ namespace Oxide.Plugins
                 }
 
                 BaseProjectile weapon = item.GetHeldEntity() as BaseProjectile;
-                return weapon == null || weapon.primaryMagazine.contents > 0 || weapon.primaryMagazine.CanReload(player);
+                //return weapon == null || weapon.primaryMagazine.contents > 0 || weapon.primaryMagazine.CanReload(player);
+                return weapon == null || weapon.primaryMagazine.contents > 0 || weapon.primaryMagazine.CanReload(null);
             }
 
             public void UnequipAll()
@@ -1608,7 +1610,7 @@ namespace Oxide.Plugins
                     instr.SetHeld(true);
                     instr.UpdateHeldItemVisibility();
                     Item item = instr.GetItem();
-                    SetActive(item.uid);
+                    SetActive((uint)item.uid.Value);
                     this.itool = instr as InstrumentTool;
                     this.info.instrument = instr.ShortPrefabName;
                 }
@@ -1617,7 +1619,7 @@ namespace Oxide.Plugins
 
             public void SetActive(uint id)
             {
-                player.svActiveItemID = id;
+                player.svActiveItemID.Value = id;
                 player.SendNetworkUpdate();
                 player.SignalBroadcast(BaseEntity.Signal.Reload, string.Empty);
             }
