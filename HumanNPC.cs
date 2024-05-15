@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.52", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.53", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -167,7 +167,7 @@ namespace Oxide.Plugins
                     {
                         OnEnterCollision(player);
                     }
-                    //if (debug) Interface.Oxide.LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, player.displayName);
+                    //if (debug) Interface.GetMod().LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, player.displayName);
                 }
                 foreach (BaseAnimalNPC animal in animals.Distinct().ToList())
                 {
@@ -176,7 +176,7 @@ namespace Oxide.Plugins
                     {
                         OnEnterCollision(animal);
                     }
-                    if (debug) Interface.Oxide.LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, animal.ShortPrefabName);
+                    if (debug) Interface.GetMod().LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, animal.ShortPrefabName);
                 }
 
                 HashSet<BasePlayer> removePlayers = new HashSet<BasePlayer>();
@@ -210,22 +210,22 @@ namespace Oxide.Plugins
 
             private void OnEnterCollision(BasePlayer player)
             {
-                Interface.Oxide.CallHook("OnEnterNPC", npc.player, player);
+                Interface.GetMod().CallHook("OnEnterNPC", npc.player, player);
             }
 
             private void OnLeaveCollision(BasePlayer player)
             {
-                Interface.Oxide.CallHook("OnLeaveNPC", npc.player, player);
+                Interface.GetMod().CallHook("OnLeaveNPC", npc.player, player);
             }
 
             private void OnEnterCollision(BaseAnimalNPC animal)
             {
-                Interface.Oxide.CallHook("OnEnterNPC", npc.player, animal);
+                Interface.GetMod().CallHook("OnEnterNPC", npc.player, animal);
             }
 
             private void OnLeaveCollision(BaseAnimalNPC animal)
             {
-                Interface.Oxide.CallHook("OnLeaveNPC", npc.player, animal);
+                Interface.GetMod().CallHook("OnLeaveNPC", npc.player, animal);
             }
         }
 
@@ -286,7 +286,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                object cwaypoints = Interface.Oxide.CallHook("GetWaypointsList", npc.info.waypoint);
+                object cwaypoints = Interface.GetMod().CallHook("GetWaypointsList", npc.info.waypoint);
                 if (cwaypoints == null)
                 {
                     cachedWaypoints = null;
@@ -317,7 +317,7 @@ namespace Oxide.Plugins
                             }
                             else
                             {
-                                if (debug) Interface.Oxide.LogInfo("Blocked waypoint? {0} for {1}, speed {2}", pair.Key, npc.player.displayName, pair.Value);
+                                if (debug) Interface.GetMod().LogInfo("Blocked waypoint? {0} for {1}, speed {2}", pair.Key, npc.player.displayName, pair.Value);
                                 //cachedWaypoints.Add(new WaypointInfo(pair.Key, speed));
                             }
                         }
@@ -334,14 +334,14 @@ namespace Oxide.Plugins
                         }
                         else
                         {
-                            if (debug) Interface.Oxide.LogInfo("Blocked waypoint to spawn? {0} for {1}", lastPos, npc.player.displayName);
+                            if (debug) Interface.GetMod().LogInfo("Blocked waypoint to spawn? {0} for {1}", lastPos, npc.player.displayName);
                         }
                     }
                     if (cachedWaypoints.Count == 0)
                     {
                         cachedWaypoints = null;
                     }
-                    if (debug) Interface.Oxide.LogInfo("Waypoints: {0} for {1}", cachedWaypoints.Count, npc.player.displayName);
+                    if (debug) Interface.GetMod().LogInfo("Waypoints: {0} for {1}", cachedWaypoints.Count, npc.player.displayName);
                 }
             }
 
@@ -359,12 +359,12 @@ namespace Oxide.Plugins
 
                 if (attackEntity is BaseCombatEntity)
                 {
-                    if (debug) Interface.Oxide.LogInfo("TryToMove: ProcessAttack(attackEntity)");
+                    if (debug) Interface.GetMod().LogInfo("TryToMove: ProcessAttack(attackEntity)");
                     ProcessAttack(attackEntity);
                 }
                 else if (followEntity is BaseEntity)
                 {
-                    if (debug) Interface.Oxide.LogInfo("TryToMove: ProcessFollow(followEntity)");
+                    if (debug) Interface.GetMod().LogInfo("TryToMove: ProcessFollow(followEntity)");
                     startedFollow = Time.realtimeSinceStartup;
                     ProcessFollow(followEntity.transform.position);
                 }
@@ -374,7 +374,7 @@ namespace Oxide.Plugins
                 }
                 else if (targetPosition != Vector3.zero)// && !(followEntity as BaseCombatEntity).IsDead())
                 {
-                    if (debug) Interface.Oxide.LogInfo("TryToMove: ProcessFollow(target)");
+                    if (debug) Interface.GetMod().LogInfo("TryToMove: ProcessFollow(target)");
                     startedFollow = Time.realtimeSinceStartup;
                     ProcessFollow(targetPosition);
                 }
@@ -421,13 +421,13 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
-                if (debug) Interface.Oxide.LogInfo("Evading...");
+                if (debug) Interface.GetMod().LogInfo("Evading...");
                 //float evd = UnityEngine.Random.Range(-npc.info.evdist/2, npc.info.evdist/2);
                 float evd = UnityEngine.Random.Range(-npc.info.evdist, npc.info.evdist);
                 //Vector3 ev = new Vector3(UnityEngine.Random.Range(-npc.info.evdist, npc.info.evdist), 0, UnityEngine.Random.Range(-npc.info.evdist, npc.info.evdist));
                 Vector3 ev = new Vector3(evd, 0, evd);
                 Vector3 newpos = npc.player.transform.position + ev;
-                if (debug) Interface.Oxide.LogInfo($"  first trying new position {newpos.ToString()}");
+                if (debug) Interface.GetMod().LogInfo($"  first trying new position {newpos.ToString()}");
                 RaycastHit hitinfo;
                 int i = 0;
                 while(Physics.OverlapSphere(newpos, npc.info.evdist, constructionMask) != null)
@@ -435,16 +435,16 @@ namespace Oxide.Plugins
                     newpos.x += UnityEngine.Random.Range(-0.2f, 0.2f);
                     newpos.y += UnityEngine.Random.Range(-0.1f, 0.1f);
                     newpos.z += UnityEngine.Random.Range(-0.2f, 0.2f);
-                    if (debug) Interface.Oxide.LogInfo($"  trying new position {newpos.ToString()}");
+                    if (debug) Interface.GetMod().LogInfo($"  trying new position {newpos.ToString()}");
                     if (Physics.Raycast(newpos, Vector3Down, out hitinfo, 0.1f, groundLayer))
                     {
-                        if (debug) Interface.Oxide.LogInfo($"  found ground or construction at {newpos.ToString()}");
+                        if (debug) Interface.GetMod().LogInfo($"  found ground or construction at {newpos.ToString()}");
                         break;
                     }
                     else
                     {
                         newpos.y = npc.locomotion.GetGroundY(newpos);
-                        if (debug) Interface.Oxide.LogInfo($"  fell through floor, relocating to {newpos.ToString()}");
+                        if (debug) Interface.GetMod().LogInfo($"  fell through floor, relocating to {newpos.ToString()}");
                     }
 
                     i++;
@@ -490,37 +490,39 @@ namespace Oxide.Plugins
                 Vis.Entities(npc.player.transform.position, 1f, pidrxy);
                 foreach (BaseChair mountable in chairs.Distinct().ToList())
                 {
-                    if (debug) Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to sit...");
+                    if (debug) Interface.GetMod().LogInfo($"HumanNPC {npc.player.displayName} trying to sit...");
                     if (mountable.IsMounted())
                     {
-                        if (debug) Interface.Oxide.LogInfo($"Someone is sitting here.");
+                        if (debug) Interface.GetMod().LogInfo($"Someone is sitting here.");
                         continue;
                     }
-                    if (debug) Interface.Oxide.LogInfo($"Found an empty chair.");
+                    if (debug) Interface.GetMod().LogInfo($"Found an empty chair.");
                     mountable.MountPlayer(npc.player);
                     npc.player.OverrideViewAngles(mountable.mountAnchor.transform.rotation.eulerAngles);
                     npc.player.eyes.NetworkUpdate(mountable.mountAnchor.transform.rotation);
-                    npc.player.ClientRPCPlayer(null, npc.player, "ForcePositionTo", npc.player.transform.position);
+                    //npc.player.ClientRPCPlayer(null, npc.player, "ForcePositionTo", npc.player.transform.position);
+                    npc.player.ClientRPC(RpcTarget.Player("ForcePositionTo", npc.player), npc.player.transform.position);
                     mountable.SetFlag(BaseEntity.Flags.Busy, true, false);
                     sitting = true;
                     break;
                 }
                 foreach (StaticInstrument mountable in pidrxy.Distinct().ToList())
                 {
-                    if (debug) Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to sit at instrument");
+                    if (debug) Interface.GetMod().LogInfo($"HumanNPC {npc.player.displayName} trying to sit at instrument");
                     if (mountable.IsMounted())
                     {
-                        if (debug) Interface.Oxide.LogInfo($"Someone is sitting here.");
+                        if (debug) Interface.GetMod().LogInfo($"Someone is sitting here.");
                         continue;
                     }
-                    if (debug) Interface.Oxide.LogInfo($"Found an empty instrument.");
+                    if (debug) Interface.GetMod().LogInfo($"Found an empty instrument.");
                     mountable.MountPlayer(npc.player);
                     npc.player.OverrideViewAngles(mountable.mountAnchor.transform.rotation.eulerAngles);
                     npc.player.eyes.NetworkUpdate(mountable.mountAnchor.transform.rotation);
-                    npc.player.ClientRPCPlayer(null, npc.player, "ForcePositionTo", npc.player.transform.position);
+                    //npc.player.ClientRPCPlayer(null, npc.player, "ForcePositionTo", npc.player.transform.position);
+                    npc.player.ClientRPC(RpcTarget.Player("ForcePositionTo", npc.player), npc.player.transform.position);
                     mountable.SetFlag(BaseEntity.Flags.Busy, true, false);
                     sitting = true;
-                    if (debug) Interface.Oxide.LogInfo($"Setting instrument for {npc.player.displayName} to {mountable.ShortPrefabName}");
+                    if (debug) Interface.GetMod().LogInfo($"Setting instrument for {npc.player.displayName} to {mountable.ShortPrefabName}");
                     npc.info.instrument = mountable.ShortPrefabName;
                     npc.ktool = mountable;//.GetParentEntity() as StaticInstrument;
                     break;
@@ -532,7 +534,7 @@ namespace Oxide.Plugins
                 //if (CanSit() && sitting)
                 if (sitting)
                 {
-                    if (debug) Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to stand...");
+                    if (debug) Interface.GetMod().LogInfo($"HumanNPC {npc.player.displayName} trying to stand...");
                     //                    npc.Invoke("AllowMove",0);
                     BaseMountable mounted = npc.player.GetMounted();
                     mounted.DismountPlayer(npc.player);
@@ -543,7 +545,7 @@ namespace Oxide.Plugins
 
             public void Ride()
             {
-                // if (debug)                Interface.Oxide.LogInfo($"Ride() invoked for {npc.player.displayName}.");
+                // if (debug)                Interface.GetMod().LogInfo($"Ride() invoked for {npc.player.displayName}.");
                 if (!npc.info.allowride)
                 {
                     return;
@@ -557,13 +559,13 @@ namespace Oxide.Plugins
                     Vis.Entities(npc.player.transform.position, 15f, horses);
                     foreach (RidableHorse mountable in horses.Distinct().ToList())
                     {
-                        if (debug) Interface.Oxide.LogInfo($"HumanNPC {npc.player.displayName} trying to ride...");
+                        if (debug) Interface.GetMod().LogInfo($"HumanNPC {npc.player.displayName} trying to ride...");
                         if (mountable.GetMounted() != null)
                         {
-                            if (debug) Interface.Oxide.LogInfo($"Someone is riding it.");
+                            if (debug) Interface.GetMod().LogInfo($"Someone is riding it.");
                             continue;
                         }
-                        if (debug) Interface.Oxide.LogInfo($"Found an available horse.");
+                        if (debug) Interface.GetMod().LogInfo($"Found an available horse.");
                         mountable.AttemptMount(npc.player);
                         npc.player.SetParent(mountable, true, true);
                         isRiding = true;
@@ -588,14 +590,14 @@ namespace Oxide.Plugins
                 {
                     distance = Vector3.Distance(npc.player.transform.position, attackEntity.transform.position);
                     targetDir = attackEntity.transform.position;
-                    if (debug) Interface.Oxide.LogInfo($"Riding towards attackEntity at {attackEntity.transform.position.ToString()}");
+                    if (debug) Interface.GetMod().LogInfo($"Riding towards attackEntity at {attackEntity.transform.position.ToString()}");
                 }
                 else
                 {
                     distance = Vector3.Distance(npc.player.transform.position, StartPos);
                     targetDir = StartPos - horse.transform.position;
 //                    rand = true;
-                    if (debug) Interface.Oxide.LogInfo($"Riding towards nowhere in particular...");
+                    if (debug) Interface.GetMod().LogInfo($"Riding towards nowhere in particular...");
                 }
 
                 bool hasMoved = targetDir != Vector3.zero && Vector3.Distance(horse.transform.position, npc.player.transform.position) > 0.5f;
@@ -663,7 +665,7 @@ namespace Oxide.Plugins
                 {
                     message.buttons += 16; // RIGHT
                 }
-                if (debug) Interface.Oxide.LogInfo($"Sending input to horse: {message.buttons.ToString()}");
+                if (debug) Interface.GetMod().LogInfo($"Sending input to horse: {message.buttons.ToString()}");
                 horse.RiderInput(new InputState() { current = message }, npc.player);
             }
 
@@ -714,7 +716,7 @@ namespace Oxide.Plugins
                     return;
                 }
                 shouldMove = true;
-                Interface.Oxide.CallHook("OnNPCPosition", npc.player, npc.player.transform.position);
+                Interface.GetMod().CallHook("OnNPCPosition", npc.player, npc.player.transform.position);
                 if (currentWaypoint + 1 >= cachedWaypoints.Count)
                 {
                     UpdateWaypoints();
@@ -803,7 +805,7 @@ namespace Oxide.Plugins
 
             private void ProcessAttack(BaseCombatEntity entity)
             {
-                if (debug) Interface.Oxide.LogInfo("ProcessAttack: {0} -> {1}", npc.player.displayName, entity.name);
+                if (debug) Interface.GetMod().LogInfo("ProcessAttack: {0} -> {1}", npc.player.displayName, entity.name);
                 float c_attackDistance = 0f;
                 if (entity?.IsAlive() == true)
                 {
@@ -819,7 +821,7 @@ namespace Oxide.Plugins
 
                     bool validAttack = Vector3.Distance(LastPos, npc.player.transform.position) < npc.info.maxDistance && noPath < 5;
 
-                    if (debug) Interface.Oxide.LogInfo("  Entity: Type {0}, alive {1}, valid {2}, distance {3}, noPath {4}", entity.GetType().FullName, entity.IsAlive(), validAttack, c_attackDistance.ToString(), noPath.ToString());
+                    if (debug) Interface.GetMod().LogInfo("  Entity: Type {0}, alive {1}, valid {2}, distance {3}, noPath {4}", entity.GetType().FullName, entity.IsAlive(), validAttack, c_attackDistance.ToString(), noPath.ToString());
                     if (validAttack)
                     {
                         bool range = false;
@@ -832,7 +834,7 @@ namespace Oxide.Plugins
                             range = c_attackDistance < npc.info.maxDistance;
                         }
                         bool see = CanSee(npc, entity);
-                        if (debug) Interface.Oxide.LogInfo("  validAttack Entity: Type {0}, ranged {1}, cansee {2}", entity.GetType().FullName, range, see);
+                        if (debug) Interface.GetMod().LogInfo("  validAttack Entity: Type {0}, ranged {1}, cansee {2}", entity.GetType().FullName, range, see);
                         if (range && see)
                         {
                             AttemptAttack(entity);
@@ -865,14 +867,14 @@ namespace Oxide.Plugins
                 //startedFollow += Time.deltaTime;
                 if (Time.realtimeSinceStartup - startedFollow > npc.info.followtime)
                 {
-                    if (debug) Interface.Oxide.LogInfo($"ProcessFollow() Took too long...");
+                    if (debug) Interface.GetMod().LogInfo($"ProcessFollow() Took too long...");
                     npc.EndFollowingEntity(noPath < 5);
                     return;
                 }
-                if (debug) Interface.Oxide.LogInfo($"ProcessFollow() called for {target.ToString()}");
+                if (debug) Interface.GetMod().LogInfo($"ProcessFollow() called for {target.ToString()}");
                 float c_followDistance = Vector3.Distance(target, npc.player.transform.position);
                 shouldMove = false;
-                if (debug) Interface.Oxide.LogInfo($"ProcessFollow() distance {c_followDistance.ToString()}");
+                if (debug) Interface.GetMod().LogInfo($"ProcessFollow() distance {c_followDistance.ToString()}");
                 if (followEntity == null)
                 {
                     npc.EndFollowingEntity(false);
@@ -893,12 +895,12 @@ namespace Oxide.Plugins
                 {
                     if (followEntity is BaseEntity)
                     {
-                        if (debug) Interface.Oxide.LogInfo($"ProcessFollow() bailing out - is BaseEntity");
+                        if (debug) Interface.GetMod().LogInfo($"ProcessFollow() bailing out - is BaseEntity");
                         npc.EndFollowingEntity(noPath < 5);
                     }
                     else if (targetPosition != Vector3.zero)
                     {
-                        if (debug) Interface.Oxide.LogInfo($"ProcessFollow() bailing out");
+                        if (debug) Interface.GetMod().LogInfo($"ProcessFollow() bailing out");
                         npc.EndGo(noPath < 5);
                         npc.locomotion.GetBackToLastPos();
                     }
@@ -1032,13 +1034,13 @@ namespace Oxide.Plugins
             {
                 if (baseProjectile.primaryMagazine.contents <= 0)
                 {
-                    if (debug) Interface.Oxide.LogInfo("Attack failed(empty): {0} - {1}", npc.player.displayName, attackEntity.name);
+                    if (debug) Interface.GetMod().LogInfo("Attack failed(empty): {0} - {1}", npc.player.displayName, attackEntity.name);
                     return;
                 }
                 ItemModProjectile component = baseProjectile.primaryMagazine.ammoType.GetComponent<ItemModProjectile>();
                 if (component == null)
                 {
-                    if (debug) Interface.Oxide.LogInfo("Attack failed(Component): {0} - {1}", npc.player.displayName, attackEntity.name);
+                    if (debug) Interface.GetMod().LogInfo("Attack failed(Component): {0} - {1}", npc.player.displayName, attackEntity.name);
                     return;
                 }
                 npc.LookTowards(target.transform.position);
@@ -1059,14 +1061,14 @@ namespace Oxide.Plugins
                 }
                 else if (!Physics.SphereCast(source, .01f, vector32, out raycastHit, float.MaxValue, targetLayer))
                 {
-                    if (debug) Interface.Oxide.LogInfo("Attack failed: {0} - {1}", npc.player.displayName, attackEntity.name);
+                    if (debug) Interface.GetMod().LogInfo("Attack failed: {0} - {1}", npc.player.displayName, attackEntity.name);
                     return;
                 }
                 else
                 {
                     hit = raycastHit.point;
                     target = raycastHit.GetCollider().GetComponent<BaseCombatEntity>();
-                    if (debug) Interface.Oxide.LogInfo("Attack failed: {0} - {1}", raycastHit.GetCollider().name, (Layer)raycastHit.GetCollider().gameObject.layer);
+                    if (debug) Interface.GetMod().LogInfo("Attack failed: {0} - {1}", raycastHit.GetCollider().name, (Layer)raycastHit.GetCollider().gameObject.layer);
                     miss = miss || target == null;
                 }
                 baseProjectile.primaryMagazine.contents--;
@@ -1130,7 +1132,7 @@ namespace Oxide.Plugins
                         if (npc.info.needsAmmo)
                         {
                             //weapon.primaryMagazine.Reload(npc.player);
-                            weapon.primaryMagazine.TryReload(null);
+                            weapon.TryReloadMagazine((IAmmoContainer)weapon.primaryMagazine);
                             npc.player.inventory.ServerUpdate(0f);
                         }
                         else
@@ -1331,7 +1333,7 @@ namespace Oxide.Plugins
                 locomotion.shouldMove = true;
                 if (trigger)
                 {
-                    Interface.Oxide.CallHook("OnNPCStopTarget", player, locomotion.attackEntity);
+                    Interface.GetMod().CallHook("OnNPCStopTarget", player, locomotion.attackEntity);
                 }
                 locomotion.attackEntity = null;
                 player.health = info.health;
@@ -1350,7 +1352,7 @@ namespace Oxide.Plugins
                 locomotion.shouldMove = true;
                 if (trigger)
                 {
-                    Interface.Oxide.CallHook("OnNPCStopFollow", player, locomotion.followEntity);
+                    Interface.GetMod().CallHook("OnNPCStopFollow", player, locomotion.followEntity);
                 }
                 locomotion.followEntity = null;
                 //locomotion.returning = true;
@@ -1370,7 +1372,7 @@ namespace Oxide.Plugins
 
                 if (trigger)
                 {
-                    Interface.Oxide.CallHook("OnNPCStopGo", player, locomotion.targetPosition);
+                    Interface.GetMod().CallHook("OnNPCStopGo", player, locomotion.targetPosition);
                 }
                 if (locomotion.returning)
                 {
@@ -1388,7 +1390,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                if (Interface.Oxide.CallHook("OnNPCStartTarget", player, entity) == null)
+                if (Interface.GetMod().CallHook("OnNPCStartTarget", player, entity) == null)
                 {
                     Item item = GetFirstWeaponItem();
                     if (item != null)
@@ -1415,7 +1417,7 @@ namespace Oxide.Plugins
 
             public void StartFollowingEntity(BaseEntity entity, string pname = "player")
             {
-                if (debug) Interface.Oxide.LogInfo($"StartFollowingEntity() called for {pname}");
+                if (debug) Interface.GetMod().LogInfo($"StartFollowingEntity() called for {pname}");
                 if (locomotion.targetPosition != Vector3.zero)
                 {
                     EndGo(false);
@@ -1512,13 +1514,13 @@ namespace Oxide.Plugins
 
             public HeldEntity GetFirstInstrument()
             {
-                if (debug) Interface.Oxide.LogInfo("GetFirstInstrument() called.");
+                if (debug) Interface.GetMod().LogInfo("GetFirstInstrument() called.");
                 foreach (Item item in player.inventory.containerBelt.itemList)
                 {
-                    if (debug) Interface.Oxide.LogInfo("Checking for instrument...");
+                    if (debug) Interface.GetMod().LogInfo("Checking for instrument...");
                     if (item.CanBeHeld() && item.info.category == ItemCategory.Fun)
                     {
-                        if (debug) Interface.Oxide.LogInfo("Found one!");
+                        if (debug) Interface.GetMod().LogInfo("Found one!");
                         return item.GetHeldEntity() as HeldEntity;
                     }
                 }
@@ -2518,15 +2520,13 @@ namespace Oxide.Plugins
         private void Unload()
         {
             //var HumanNPCMono = UnityEngine.Object.FindObjectsOfType<HumanPlayer>();
-            HumanPlayer[] HumanNPCMono = Resources.FindObjectsOfTypeAll<HumanPlayer>();
-            foreach (HumanPlayer mono in HumanNPCMono)
+            foreach (HumanPlayer mono in Resources.FindObjectsOfTypeAll<HumanPlayer>())
             {
                 PrintWarning($"Deleting {mono.info.displayName} ({mono.info.userid})");
                 mono.GetComponent<BasePlayer>().Kill();
             }
 
-            NPCEditor[] npcEditors = UnityEngine.Object.FindObjectsOfType<NPCEditor>();
-            foreach (NPCEditor gameObj in npcEditors)
+            foreach (NPCEditor gameObj in UnityEngine.Object.FindObjectsOfType<NPCEditor>())
             {
                 UnityEngine.Object.Destroy(gameObj);
             }
@@ -2546,7 +2546,7 @@ namespace Oxide.Plugins
 
         private void LoadData()
         {
-            data = Interface.Oxide.DataFileSystem.GetFile(nameof(HumanNPC));
+            data = Interface.GetMod().DataFileSystem.GetFile(nameof(HumanNPC));
             data.Settings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
             data.Settings.Converters = new JsonConverter[] { new SpawnInfoConverter(), new UnityQuaternionConverter(), new UnityVector3Converter() };
 
@@ -2667,7 +2667,7 @@ namespace Oxide.Plugins
             Array.Sort(hitpoints, (a, b) => a.distance == b.distance ? 0 : a.distance > b.distance ? 1 : -1);
             for (int i = 0; i < hitpoints.Length; i++)
             {
-                if (debug) Interface.Oxide.LogInfo("OnPlayerInput: {0} ({1})", player.displayName, hitpoints[i].collider.name);
+                if (debug) Interface.GetMod().LogInfo("OnPlayerInput: {0} ({1})", player.displayName, hitpoints[i].collider.name);
                 HumanPlayer humanPlayer = hitpoints[i].collider.GetComponentInParent<HumanPlayer>();
                 if (humanPlayer != null)
                 {
@@ -2684,7 +2684,7 @@ namespace Oxide.Plugins
                     {
                         SendMessage(humanPlayer, player, GetRandomMessage(humanPlayer.info.message_use));
                     }
-                    Interface.Oxide.CallHook("OnUseNPC", humanPlayer.player, player);
+                    Interface.GetMod().CallHook("OnUseNPC", humanPlayer.player, player);
                     break;
                 }
             }
@@ -2712,7 +2712,7 @@ namespace Oxide.Plugins
             HumanPlayer humanPlayer = entity.GetComponent<HumanPlayer>();
             if (humanPlayer != null)
             {
-                if (debug) Interface.Oxide.LogInfo($"OnEntityTakeDamage(by {entity.name})");
+                if (debug) Interface.GetMod().LogInfo($"OnEntityTakeDamage(by {entity.name})");
                 // Nikedemos
                 //if you're supposed to retaliate against your team members,
                 //check if the initiator is part of the same team
@@ -2731,7 +2731,7 @@ namespace Oxide.Plugins
                         SendMessage(humanPlayer, hitinfo.InitiatorPlayer, GetRandomMessage(humanPlayer.info.message_hurt));
                     }
                 }
-                Interface.Oxide.CallHook("OnHitNPC", entity.GetComponent<BaseCombatEntity>(), hitinfo);
+                Interface.GetMod().CallHook("OnHitNPC", entity.GetComponent<BaseCombatEntity>(), hitinfo);
                 if (humanPlayer.info.invulnerability)
                 {
                     hitinfo.damageTypes = new DamageTypeList();
@@ -2801,7 +2801,7 @@ namespace Oxide.Plugins
                 //if (humanPlayer.info.xp > 0)
                 //    player.xp.Add(Definitions.Cheat, humanPlayer.info.xp);
             }
-            Interface.Oxide.CallHook("OnKillNPC", entity.GetComponent<BasePlayer>(), hitinfo);
+            Interface.GetMod().CallHook("OnKillNPC", entity.GetComponent<BasePlayer>(), hitinfo);
             if (humanPlayer.info.respawn)
             {
                 timer.Once(humanPlayer.info.respawnSeconds, () => SpawnOrRefresh(humanPlayer.info.userid));
@@ -2827,7 +2827,7 @@ namespace Oxide.Plugins
         {
             if (humannpcs[target.userID] != null)
             {
-                Interface.Oxide.CallHook("OnLootNPC", looter.inventory.loot, target, target.userID);
+                Interface.GetMod().CallHook("OnLootNPC", looter.inventory.loot, target, target.userID);
             }
         }
 
@@ -2841,7 +2841,7 @@ namespace Oxide.Plugins
             ulong userId = ((PlayerCorpse)entity).playerSteamID;
             if (humannpcs[userId] != null)
             {
-                Interface.Oxide.CallHook("OnLootNPC", looter.inventory.loot, entity, userId);
+                Interface.GetMod().CallHook("OnLootNPC", looter.inventory.loot, entity, userId);
             }
         }
 
@@ -3041,7 +3041,7 @@ namespace Oxide.Plugins
             humanPlayer.UpdateHealth(info);
             cache[userid] = humanPlayer;
             UpdateInventory(humanPlayer);
-            Interface.Oxide.CallHook("OnNPCRespawn", newPlayer);
+            Interface.GetMod().CallHook("OnNPCRespawn", newPlayer);
             //Puts($"Spawned NPC: {humanPlayer.player.displayName}/{userid}");
         }
 
@@ -3217,29 +3217,29 @@ namespace Oxide.Plugins
 
         private static bool CanSee(HumanPlayer npc, BaseEntity target)
         {
-            if (debug) Interface.Oxide.LogInfo($"CanSee(): {npc.transform.position} looking at {target.transform.position}");
+            if (debug) Interface.GetMod().LogInfo($"CanSee(): {npc.transform.position} looking at {target.transform.position}");
             BasePlayer source = npc.player;
             BaseProjectile weapon = source.GetActiveItem()?.GetHeldEntity() as BaseProjectile;
             Vector3 pos = source.transform.position + source.GetOffset();
             if (weapon?.MuzzlePoint != null)
             {
                 pos += Quaternion.LookRotation(target.transform.position - source.transform.position) * weapon.MuzzlePoint.position;
-                if (debug) Interface.Oxide.LogInfo($"CanSee(): MuzzlePoint NULL");
+                if (debug) Interface.GetMod().LogInfo($"CanSee(): MuzzlePoint NULL");
             }
             else
             {
-                if (debug) Interface.Oxide.LogInfo($"CanSee(): MuzzlePoint NOT null");
+                if (debug) Interface.GetMod().LogInfo($"CanSee(): MuzzlePoint NOT null");
             }
 
             //if (Physics.Linecast(source.transform.position + new Vector3(0, 1.6f, 0), target.transform.position + new Vector3(0, 1.6f, 0), obstructionMask))
             if (Physics.Linecast(source.transform.position, target.transform.position, obstructionMask))
             {
-                if (debug) Interface.Oxide.LogInfo($"CanSee(): Blocked by some obstruction.");
+                if (debug) Interface.GetMod().LogInfo($"CanSee(): Blocked by some obstruction.");
                 return false;
             }
             if (Vector3.Distance(source.transform.position, target.transform.position) < npc.info.damageDistance)
             {
-                if (debug) Interface.Oxide.LogInfo($"CanSee(): In range!");
+                if (debug) Interface.GetMod().LogInfo($"CanSee(): In range!");
                 //if (!IsLayerBlocked(target.transform.position, npc.info.attackDistance, obstructionMask))
                 if (!IsLayerBlocked(target.transform.position, 10f, obstructionMask))
                 {
@@ -3264,7 +3264,7 @@ namespace Oxide.Plugins
             {
                 if (player == target)
                 {
-                    if (debug) Interface.Oxide.LogInfo($"CanSee(): I can see them!");
+                    if (debug) Interface.GetMod().LogInfo($"CanSee(): I can see them!");
                     //if (!IsLayerBlocked(target.transform.position, npc.info.attackDistance, obstructionMask))
                     if (!IsLayerBlocked(target.transform.position, 10f, obstructionMask))
                     {
@@ -3275,7 +3275,7 @@ namespace Oxide.Plugins
                     return true;
                 }
             }
-            if (debug) Interface.Oxide.LogInfo($"CanSee(): NOPE");
+            if (debug) Interface.GetMod().LogInfo($"CanSee(): NOPE");
             return false;
         }
 
@@ -4685,7 +4685,7 @@ namespace Oxide.Plugins
                     {
                         npcEditor.targetNPC.info.waypoint = null;
                     }
-                    else if (Interface.Oxide.CallHook("GetWaypointsList", name) == null)
+                    else if (Interface.GetMod().CallHook("GetWaypointsList", name) == null)
                     {
                         SendReply(player, "This waypoint doesn't exist");
                         return;
@@ -4781,7 +4781,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            Interface.Oxide.CallHook("FindAndFollowPath", npcEditor.targetNPC.player, npcEditor.targetNPC.player.transform.position, closestHitpoint);
+            Interface.GetMod().CallHook("FindAndFollowPath", npcEditor.targetNPC.player, npcEditor.targetNPC.player.transform.position, closestHitpoint);
         }
 
 //        [ChatCommand("npc_follow")]
@@ -5022,7 +5022,7 @@ namespace Oxide.Plugins
 
         public static Quaternion StringToQuaternion(string sQuaternion)
         {
-            //Interface.Oxide.LogInfo($"Converting {sQuaternion} to Quaternion.");
+            //Interface.GetMod().LogInfo($"Converting {sQuaternion} to Quaternion.");
             // Remove the parentheses
             if (sQuaternion.StartsWith("(") && sQuaternion.EndsWith(")"))
             {
