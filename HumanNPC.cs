@@ -1,4 +1,5 @@
 // Requires: PathFinding
+using Facepunch;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Oxide.Core;
@@ -6,7 +7,6 @@ using Oxide.Core.Configuration;
 using Oxide.Core.Plugins;
 using Oxide.Game.Rust;
 using Rust;
-using Facepunch;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.3.53", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.4.0", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -32,13 +32,13 @@ namespace Oxide.Plugins
         private static Vector3 Vector3Down;
         private static int groundLayer;
 
-        private Hash<ulong, HumanNPCInfo> humannpcs = new Hash<ulong, HumanNPCInfo>();
+        private Hash<ulong, HumanNPCInfo> humannpcs = new();
 
         // Nikedemos
-        private Hash<ulong, HumanNPCTeamInfo> humannpcteams = new Hash<ulong, HumanNPCTeamInfo>();
+        private Hash<ulong, HumanNPCTeamInfo> humannpcteams = new();
         //private FoFLookup fofLookup = new FoFLookup(); //constructor is empty, don't generate yet, wait for all the NPCTeamInfo to be populated first!
-        public static readonly Dictionary<HumanNPCAlignment, string> FoFEnumToString = new Dictionary<HumanNPCAlignment, string>();
-        public static readonly Dictionary<string, HumanNPCAlignment> FoFStringToEnum = new Dictionary<string, HumanNPCAlignment>();
+        public static readonly Dictionary<HumanNPCAlignment, string> FoFEnumToString = new();
+        public static readonly Dictionary<string, HumanNPCAlignment> FoFStringToEnum = new();
         // Nikedemos
 
         private static readonly int playerMask = LayerMask.GetMask("Player (Server)");
@@ -62,9 +62,9 @@ namespace Oxide.Plugins
 
         private class StoredData
         {
-            public HashSet<HumanNPCInfo> HumanNPCs = new HashSet<HumanNPCInfo>();
+            public HashSet<HumanNPCInfo> HumanNPCs = new();
             // Nikedemos
-            public HashSet<HumanNPCTeamInfo> HumanNPCTeams = new HashSet<HumanNPCTeamInfo>();
+            public HashSet<HumanNPCTeamInfo> HumanNPCTeams = new();
         }
 
         public class WaypointInfo
@@ -81,12 +81,12 @@ namespace Oxide.Plugins
 
         public static bool IsLayerBlocked(Vector3 position, float radius, int mask)
         {
-            List<Collider> colliders = Pool.GetList<Collider>();
+            List<Collider> colliders = Pool.Get<List<Collider>>();
             Vis.Colliders(position, radius, colliders, mask, QueryTriggerInteraction.Collide);
 
             bool blocked = colliders.Count > 0;
 
-            Pool.FreeList(ref colliders);
+            Pool.FreeUnmanaged(ref colliders);
 
             return blocked;
         }
@@ -132,8 +132,8 @@ namespace Oxide.Plugins
         {
             private HumanPlayer npc;
 
-            private readonly HashSet<BasePlayer> triggerPlayers = new HashSet<BasePlayer>();
-            private readonly HashSet<BaseAnimalNPC> triggerAnimals = new HashSet<BaseAnimalNPC>();
+            private readonly HashSet<BasePlayer> triggerPlayers = new();
+            private readonly HashSet<BaseAnimalNPC> triggerAnimals = new();
 
             public float collisionRadius;
 
@@ -151,11 +151,11 @@ namespace Oxide.Plugins
 
             private void UpdateTriggerArea()
             {
-                HashSet<BasePlayer> collidePlayers = new HashSet<BasePlayer>();
-                HashSet<BaseAnimalNPC> collideAnimals = new HashSet<BaseAnimalNPC>();
+                HashSet<BasePlayer> collidePlayers = new();
+                HashSet<BaseAnimalNPC> collideAnimals = new();
 
-                List<BasePlayer> players = new List<BasePlayer>();
-                List<BaseAnimalNPC> animals = new List<BaseAnimalNPC>();
+                List<BasePlayer> players = new();
+                List<BaseAnimalNPC> animals = new();
                 Vis.Entities(npc.player.transform.position, collisionRadius, players, targetLayer);
                 Vis.Entities(npc.player.transform.position, collisionRadius, animals, targetLayer);
 
@@ -179,7 +179,7 @@ namespace Oxide.Plugins
                     if (debug) Interface.GetMod().LogInfo("UpdateTriggerArea: {0} found {1}", npc.player.displayName, animal.ShortPrefabName);
                 }
 
-                HashSet<BasePlayer> removePlayers = new HashSet<BasePlayer>();
+                HashSet<BasePlayer> removePlayers = new();
                 foreach (BasePlayer player in triggerPlayers)
                 {
                     if (!collidePlayers.Contains(player))
@@ -193,7 +193,7 @@ namespace Oxide.Plugins
                     OnLeaveCollision(player);
                 }
 
-                HashSet<BaseAnimalNPC> removeAnimals = new HashSet<BaseAnimalNPC>();
+                HashSet<BaseAnimalNPC> removeAnimals = new();
                 foreach (BaseAnimalNPC animal in triggerAnimals)
                 {
                     if (!collideAnimals.Contains(animal))
@@ -239,10 +239,10 @@ namespace Oxide.Plugins
         public class HumanLocomotion : MonoBehaviour
         {
             private HumanPlayer npc;
-            public Vector3 StartPos = new Vector3(0f, 0f, 0f);
-            public Vector3 EndPos = new Vector3(0f, 0f, 0f);
-            public Vector3 LastPos = new Vector3(0f, 0f, 0f);
-            private Vector3 nextPos = new Vector3(0f, 0f, 0f);
+            public Vector3 StartPos = new(0f, 0f, 0f);
+            public Vector3 EndPos = new(0f, 0f, 0f);
+            public Vector3 LastPos = new(0f, 0f, 0f);
+            private Vector3 nextPos = new(0f, 0f, 0f);
             private float waypointDone;
             public float secondsTaken;
             private float secondsToTake;
@@ -425,12 +425,12 @@ namespace Oxide.Plugins
                 //float evd = UnityEngine.Random.Range(-npc.info.evdist/2, npc.info.evdist/2);
                 float evd = UnityEngine.Random.Range(-npc.info.evdist, npc.info.evdist);
                 //Vector3 ev = new Vector3(UnityEngine.Random.Range(-npc.info.evdist, npc.info.evdist), 0, UnityEngine.Random.Range(-npc.info.evdist, npc.info.evdist));
-                Vector3 ev = new Vector3(evd, 0, evd);
+                Vector3 ev = new(evd, 0, evd);
                 Vector3 newpos = npc.player.transform.position + ev;
                 if (debug) Interface.GetMod().LogInfo($"  first trying new position {newpos.ToString()}");
                 RaycastHit hitinfo;
                 int i = 0;
-                while(Physics.OverlapSphere(newpos, npc.info.evdist, constructionMask) != null)
+                while (Physics.OverlapSphere(newpos, npc.info.evdist, constructionMask) != null)
                 {
                     newpos.x += UnityEngine.Random.Range(-0.2f, 0.2f);
                     newpos.y += UnityEngine.Random.Range(-0.1f, 0.1f);
@@ -482,10 +482,10 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                npc.Invoke("AllowMove",0);
+                npc.Invoke("AllowMove", 0);
                 // Find a place to sit
-                List<BaseChair> chairs = new List<BaseChair>();
-                List<StaticInstrument> pidrxy = new List<StaticInstrument>();
+                List<BaseChair> chairs = new();
+                List<StaticInstrument> pidrxy = new();
                 Vis.Entities(npc.player.transform.position, 10f, chairs);
                 Vis.Entities(npc.player.transform.position, 1f, pidrxy);
                 foreach (BaseChair mountable in chairs.Distinct().ToList())
@@ -551,13 +551,13 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                RidableHorse horse = npc.player.GetMountedVehicle() as RidableHorse;
+                RidableHorse2 horse = npc.player.GetMountedVehicle() as RidableHorse2;
                 if (horse == null)
                 {
                     // Find a place to sit
-                    List<RidableHorse> horses = new List<RidableHorse>();
+                    List<RidableHorse2> horses = new();
                     Vis.Entities(npc.player.transform.position, 15f, horses);
-                    foreach (RidableHorse mountable in horses.Distinct().ToList())
+                    foreach (RidableHorse2 mountable in horses.Distinct().ToList())
                     {
                         if (debug) Interface.GetMod().LogInfo($"HumanNPC {npc.player.displayName} trying to ride...");
                         if (mountable.GetMounted() != null)
@@ -580,9 +580,9 @@ namespace Oxide.Plugins
                     npc.locomotion.PathFinding();
                     return;
                 }
-                Vector3 targetDir = new Vector3();
-                Vector3 targetLoc = new Vector3();
-                Vector3 targetHorsePos = new Vector3();
+                Vector3 targetDir = new();
+                Vector3 targetLoc = new();
+                Vector3 targetHorsePos = new();
                 float distance = 0f;
                 bool rand = true;
 
@@ -596,7 +596,7 @@ namespace Oxide.Plugins
                 {
                     distance = Vector3.Distance(npc.player.transform.position, StartPos);
                     targetDir = StartPos - horse.transform.position;
-//                    rand = true;
+                    //                    rand = true;
                     if (debug) Interface.GetMod().LogInfo($"Riding towards nowhere in particular...");
                 }
 
@@ -644,7 +644,7 @@ namespace Oxide.Plugins
                 //float angle = Vector3.SignedAngle(npc.player.transform.forward, targetDir, Vector3.forward);
                 //float angle = Vector3.SignedAngle(targetDir, horse.transform.forward, Vector3.forward);
 
-                InputMessage message = new InputMessage() { buttons = 0 };
+                InputMessage message = new() { buttons = 0 };
                 if (distance > npc.info.damageDistance)
                 {
                     message.buttons = 2; // FORWARD
@@ -653,7 +653,8 @@ namespace Oxide.Plugins
                 {
                     message.buttons = 130; // SPRINT FORWARD
                 }
-                if (horse.currentRunState == BaseRidableAnimal.RunState.sprint && distance < npc.info.maxDistance)
+                //if (horse.currentRunState == BaseRidableAnimal.RunState.sprint && distance < npc.info.maxDistance)
+                if (horse.IsMoving())
                 {
                     message.buttons = 0; // STOP ?
                 }
@@ -666,7 +667,7 @@ namespace Oxide.Plugins
                     message.buttons += 16; // RIGHT
                 }
                 if (debug) Interface.GetMod().LogInfo($"Sending input to horse: {message.buttons.ToString()}");
-                horse.RiderInput(new InputState() { current = message }, npc.player);
+                horse.PlayerServerInput(new InputState() { current = message }, npc.player);
             }
 
             private float GetSpeed(float speed = -1)
@@ -1081,7 +1082,7 @@ namespace Oxide.Plugins
                 }
 
                 Effect.server.Run(baseProjectile.attackFX.resourcePath, baseProjectile, StringPool.Get(baseProjectile.handBone), Vector3.zero, Vector3.forward);
-                Effect effect = new Effect();
+                Effect effect = new();
                 effect.Init(Effect.Type.Projectile, source, vector32.normalized);
                 effect.scale = vector32.magnitude;
                 effect.pooledString = component.projectileObject.resourcePath;
@@ -1098,7 +1099,7 @@ namespace Oxide.Plugins
                 {
                     dest = target.transform.position;
                 }
-                HitInfo hitInfo = new HitInfo(npc.player, target, DamageType.Bullet, dmg, dest)
+                HitInfo hitInfo = new(npc.player, target, DamageType.Bullet, dmg, dest)
                 {
                     DidHit = !miss,
                     HitEntity = target,
@@ -1197,7 +1198,7 @@ namespace Oxide.Plugins
                 }
                 else
                 {
-                    HitInfo hitInfo = new HitInfo(npc.player, target, DamageType.Stab, dmg, target.transform.position)
+                    HitInfo hitInfo = new(npc.player, target, DamageType.Stab, dmg, target.transform.position)
                     {
                         PointStart = npc.player.transform.position,
                         PointEnd = target.transform.position
@@ -1529,7 +1530,7 @@ namespace Oxide.Plugins
 
             public List<Item> GetAmmo(Item item)
             {
-                List<Item> ammos = new List<Item>();
+                List<Item> ammos = new();
                 AmmoTypes ammoType;
                 if (!ammoTypes.TryGetValue(item.info.shortname, out ammoType))
                 {
@@ -1757,7 +1758,7 @@ namespace Oxide.Plugins
 
         public Hash<ulong, HumanNPCTeamInfo> GetAllTeamsContainingUserID(ulong userid)
         {
-            Hash<ulong, HumanNPCTeamInfo> foundTeams = new Hash<ulong, HumanNPCTeamInfo>();
+            Hash<ulong, HumanNPCTeamInfo> foundTeams = new();
 
             foreach (KeyValuePair<ulong, HumanNPCTeamInfo> team in humannpcteams)
             {
@@ -1838,7 +1839,7 @@ namespace Oxide.Plugins
         public HumanNPCAlignment GetRelationshipFromCache(ulong whoUserID, ulong whomUserID)
         {
             HumanNPCAlignment relationship = HumanNPCAlignment.Neutral;
-            Tuple<ulong, ulong> relationshipTuple = new Tuple<ulong, ulong>(whoUserID, whomUserID);
+            Tuple<ulong, ulong> relationshipTuple = new(whoUserID, whomUserID);
 
             if (relationshipCache.ContainsKey(relationshipTuple)) //that means it's either friend or foe
             {
@@ -1856,9 +1857,9 @@ namespace Oxide.Plugins
             conflictCache = new Dictionary<Tuple<ulong, ulong>, bool>();
 
             //create a temporary Hashes: goodBois, badBois and conflictedBois where the first index is the team id and the second - a user/NPC id
-            Dictionary<Tuple<ulong, ulong>, bool> goodBois = new Dictionary<Tuple<ulong, ulong>, bool>();
-            Dictionary<Tuple<ulong, ulong>, bool> badBois = new Dictionary<Tuple<ulong, ulong>, bool>();
-            Dictionary<Tuple<ulong, ulong>, bool> conflictedBois = new Dictionary<Tuple<ulong, ulong>, bool>();
+            Dictionary<Tuple<ulong, ulong>, bool> goodBois = new();
+            Dictionary<Tuple<ulong, ulong>, bool> badBois = new();
+            Dictionary<Tuple<ulong, ulong>, bool> conflictedBois = new();
 
             //Step 1: all all the teammates to their respective teams' goodBois.
             PrintWarning("[PHASE 1] Populating all the teams' friend lists with team members IDs");
@@ -1902,7 +1903,7 @@ namespace Oxide.Plugins
                             {
                                 ulong otherTeamMemberId = otherTeamMember.Value.userid;
                                 PrintWarning($"                 Processing member {otherTeamMemberId}");
-                                Tuple<ulong, ulong> relationshipTupleKey = new Tuple<ulong, ulong>(teamId, otherTeamMemberId); //to identify the relationship between the team considering and that particular member
+                                Tuple<ulong, ulong> relationshipTupleKey = new(teamId, otherTeamMemberId); //to identify the relationship between the team considering and that particular member
                                 //check if it exists in conflictedBois for that team
                                 if (conflictedBois.ContainsKey(relationshipTupleKey))
                                 {
@@ -2015,7 +2016,7 @@ namespace Oxide.Plugins
                     PrintWarning($"             Processing team member {userOneId}");
                     if (userOneId != userTwoId) //don't add yourself, you're always neutral towards yourself
                     {
-                        Tuple<ulong, ulong> relationshipTuple = new Tuple<ulong, ulong>(userOneId, userTwoId);
+                        Tuple<ulong, ulong> relationshipTuple = new(userOneId, userTwoId);
 
                         //check for existing conflicts first
 
@@ -2071,7 +2072,7 @@ namespace Oxide.Plugins
                     PrintWarning($"             Processing team member {userOneId}");
                     if (userOneId != userTwoId) //don't add yourself, you're always neutral towards yourself
                     {
-                        Tuple<ulong, ulong> relationshipTuple = new Tuple<ulong, ulong>(userOneId, userTwoId);
+                        Tuple<ulong, ulong> relationshipTuple = new(userOneId, userTwoId);
 
                         //check for existing conflicts first
 
@@ -2300,7 +2301,7 @@ namespace Oxide.Plugins
             public List<string> message_use;
             public List<string> message_hurt;
             public List<string> message_kill;
-            public Dictionary<DamageType, float> protections = new Dictionary<DamageType, float>();
+            public Dictionary<DamageType, float> protections = new();
 
             // Nikedemos
             public bool hostileTowardsArmed;
@@ -2421,7 +2422,7 @@ namespace Oxide.Plugins
             }
         }
 
-        public static Dictionary<string, AmmoTypes> ammoTypes = new Dictionary<string, AmmoTypes>();
+        public static Dictionary<string, AmmoTypes> ammoTypes = new();
         //{
         //    {"bow.hunting", AmmoTypes.BOW_ARROW},
         //    {"crossbow", AmmoTypes.BOW_ARROW},
@@ -2436,7 +2437,7 @@ namespace Oxide.Plugins
         //    {"smg.thompson", AmmoTypes.PISTOL_9MM}
         //};
 
-        private static Dictionary<string, BaseProjectile> weaponProjectile = new Dictionary<string, BaseProjectile>();
+        private static Dictionary<string, BaseProjectile> weaponProjectile = new();
 
         protected override void LoadDefaultConfig()
         {
@@ -2780,7 +2781,7 @@ namespace Oxide.Plugins
                     killer.EndAttackingEntity();
                 }
             }
-            catch {}
+            catch { }
             HumanPlayer humanPlayer = entity.GetComponent<HumanPlayer>();
             if (humanPlayer?.info == null)
             {
@@ -2819,7 +2820,7 @@ namespace Oxide.Plugins
                     return false;
                 }
             }
-            catch {}
+            catch { }
             return null;
         }
 
@@ -2894,7 +2895,7 @@ namespace Oxide.Plugins
 
             if (FindTeamIDByName(name) == 0) //0 means no ID by that name found
             {
-                HumanNPCTeamInfo npcTeamInfo = new HumanNPCTeamInfo(name);
+                HumanNPCTeamInfo npcTeamInfo = new(name);
                 teamId = npcTeamInfo.teamid;
 
                 humannpcteams[teamId] = npcTeamInfo;
@@ -2906,7 +2907,7 @@ namespace Oxide.Plugins
         }
         // Nikedemos
 
-        private Dictionary<ulong, HumanPlayer> cache = new Dictionary<ulong, HumanPlayer>();
+        private Dictionary<ulong, HumanPlayer> cache = new();
 
         public HumanPlayer FindHumanPlayerByID(ulong userid)
         {
@@ -2985,7 +2986,7 @@ namespace Oxide.Plugins
 
         private void RefreshAllNPC()
         {
-            List<ulong> npcspawned = new List<ulong>();
+            List<ulong> npcspawned = new();
             foreach (KeyValuePair<ulong, HumanNPCInfo> pair in humannpcs)
             {
                 if (!pair.Value.enable)
@@ -3195,7 +3196,7 @@ namespace Oxide.Plugins
         private bool TryGetClosestRayPoint(Vector3 sourcePos, Quaternion sourceDir, out object closestEnt, out Vector3 closestHitpoint)
         {
             Vector3 sourceEye = sourcePos + new Vector3(0f, 1.5f, 0f);
-            Ray ray = new Ray(sourceEye, sourceDir * Vector3.forward);
+            Ray ray = new(sourceEye, sourceDir * Vector3.forward);
 
             RaycastHit[] hits = Physics.RaycastAll(ray);
             float closestdist = 999999f;
@@ -3243,7 +3244,7 @@ namespace Oxide.Plugins
                 //if (!IsLayerBlocked(target.transform.position, npc.info.attackDistance, obstructionMask))
                 if (!IsLayerBlocked(target.transform.position, 10f, obstructionMask))
                 {
-//                    npc.Evade();
+                    //                    npc.Evade();
                 }
 
                 npc.LookTowards(target.transform.position);
@@ -3258,7 +3259,7 @@ namespace Oxide.Plugins
                 //}
                 return true;
             }
-            List<BasePlayer> nearPlayers = new List<BasePlayer>();
+            List<BasePlayer> nearPlayers = new();
             Vis.Entities(pos, npc.info.maxDistance, nearPlayers, playerMask);
             foreach (BasePlayer player in nearPlayers)
             {
@@ -3268,7 +3269,7 @@ namespace Oxide.Plugins
                     //if (!IsLayerBlocked(target.transform.position, npc.info.attackDistance, obstructionMask))
                     if (!IsLayerBlocked(target.transform.position, 10f, obstructionMask))
                     {
-//                        npc.Evade();
+                        //                        npc.Evade();
                     }
 
                     npc.LookTowards(target.transform.position);
@@ -3284,7 +3285,7 @@ namespace Oxide.Plugins
 
         private List<string> ListFromArgs(string[] args, int from)
         {
-            List<string> newlist = new List<string>();
+            List<string> newlist = new();
             for (int i = from; i < args.Length; i++)
             {
                 newlist.Add(args[i]);
@@ -4054,7 +4055,7 @@ namespace Oxide.Plugins
                 SendReply(player, "The NPC has no waypoints");
                 return;
             }
-            Vector3 eyes = new Vector3(0, 1.6f, 0);
+            Vector3 eyes = new(0, 1.6f, 0);
             Vector3 lastPos = humanPlayer.info.spawnInfo.position + eyes;
             for (int i = 0; i < humanPlayer.locomotion.cachedWaypoints.Count; i++)
             {
@@ -4182,7 +4183,7 @@ namespace Oxide.Plugins
 
             if (foundNew)
             {
-                DynamicConfigFile data = new DynamicConfigFile("oxide/config/Kits.json");
+                DynamicConfigFile data = new("oxide/config/Kits.json");
                 data.WriteObject(kitStoredData, true);
                 SendReply(player, "Reload Kits plugin");
             }
@@ -4221,7 +4222,7 @@ namespace Oxide.Plugins
 
             if (foundNew)
             {
-                DynamicConfigFile data = new DynamicConfigFile("oxide/config/Kits.json");
+                DynamicConfigFile data = new("oxide/config/Kits.json");
                 data.WriteObject(kitStoredData, true);
                 SendReply(player, "Reload Kits plugin");
             }
@@ -4663,7 +4664,7 @@ namespace Oxide.Plugins
                 case "spawn":
                     Quaternion currentRot;
                     TryGetPlayerView(player, out currentRot);
-                    SpawnInfo newSpawn = new SpawnInfo(player.transform.position, currentRot);
+                    SpawnInfo newSpawn = new(player.transform.position, currentRot);
                     npcEditor.targetNPC.info.spawnInfo = newSpawn;
                     SendReply(player, $"This NPC Spawn now is set to: {newSpawn.String()}");
                     break;
@@ -4784,41 +4785,41 @@ namespace Oxide.Plugins
             Interface.GetMod().CallHook("FindAndFollowPath", npcEditor.targetNPC.player, npcEditor.targetNPC.player.transform.position, closestHitpoint);
         }
 
-//        [ChatCommand("npc_follow")]
-//        private void cmdChatNPCFollow(BasePlayer player, string command, string[] args)
-//        {
-//            if (!hasAccess(player)) return;
-//
-//            HumanPlayer humanPlayer;
-//            BaseEntity pe = player as BaseEntity;
-//            if (args.Length == 0)
-//            {
-//                Quaternion currentRot;
-//                if (!TryGetPlayerView(player, out currentRot)) return;
-//                object closestEnt;
-//                Vector3 closestHitpoint;
-//                if (!TryGetClosestRayPoint(player.transform.position, currentRot, out closestEnt, out closestHitpoint)) return;
-//                humanPlayer = ((Collider)closestEnt).GetComponentInParent<HumanPlayer>();
-//                if (humanPlayer == null)
-//                {
-//                    SendReply(player, "This is not an NPC");
-//                    return;
-//                }
-//            }
-//            else
-//            {
-//                SendReply(player, "You are not looking at an NPC or this userid doesn't exist");
-//                return;
-//            }
-//
-//            var targetid = humanPlayer.player.userID;
-//            humanPlayer.AllowMove();
-//            //humanPlayer.StartFollowingEntity(pe, player.displayName);
-//            humanPlayer.locomotion.targetPosition = player.transform.position;
-//            humanPlayer.locomotion.followEntity = player;
-//            humanPlayer.locomotion.TryToMove();
-//            SendReply(player, $"NPC {targetid} following");
-//        }
+        //        [ChatCommand("npc_follow")]
+        //        private void cmdChatNPCFollow(BasePlayer player, string command, string[] args)
+        //        {
+        //            if (!hasAccess(player)) return;
+        //
+        //            HumanPlayer humanPlayer;
+        //            BaseEntity pe = player as BaseEntity;
+        //            if (args.Length == 0)
+        //            {
+        //                Quaternion currentRot;
+        //                if (!TryGetPlayerView(player, out currentRot)) return;
+        //                object closestEnt;
+        //                Vector3 closestHitpoint;
+        //                if (!TryGetClosestRayPoint(player.transform.position, currentRot, out closestEnt, out closestHitpoint)) return;
+        //                humanPlayer = ((Collider)closestEnt).GetComponentInParent<HumanPlayer>();
+        //                if (humanPlayer == null)
+        //                {
+        //                    SendReply(player, "This is not an NPC");
+        //                    return;
+        //                }
+        //            }
+        //            else
+        //            {
+        //                SendReply(player, "You are not looking at an NPC or this userid doesn't exist");
+        //                return;
+        //            }
+        //
+        //            var targetid = humanPlayer.player.userID;
+        //            humanPlayer.AllowMove();
+        //            //humanPlayer.StartFollowingEntity(pe, player.displayName);
+        //            humanPlayer.locomotion.targetPosition = player.transform.position;
+        //            humanPlayer.locomotion.followEntity = player;
+        //            humanPlayer.locomotion.TryToMove();
+        //            SendReply(player, $"NPC {targetid} following");
+        //        }
 
         [ChatCommand("npc_remove")]
         private void cmdChatNPCRemove(BasePlayer player, string command, string[] args)
@@ -4918,7 +4919,7 @@ namespace Oxide.Plugins
             return humanPlayer.player;
         }
 
-        private List<ulong> HumanNPCs()=>humannpcs.Keys.ToList();
+        private List<ulong> HumanNPCs() => humannpcs.Keys.ToList();
 
         private string HumanNPCname(ulong userid)
         {
@@ -5033,7 +5034,7 @@ namespace Oxide.Plugins
             string[] sArray = sQuaternion.Split(',');
 
             // store as a Vector3
-            Quaternion result = new Quaternion(
+            Quaternion result = new(
                 float.Parse(sArray[0]),
                 float.Parse(sArray[1]),
                 float.Parse(sArray[2]),
@@ -5121,7 +5122,7 @@ namespace Oxide.Plugins
                     npcEditor.targetNPC.info.stopandtalk = GetBoolValue(data);
                     break;
                 case "stopandtalkseconds":
-                    npcEditor.targetNPC.info.stopandtalkSeconds= Convert.ToSingle(data);
+                    npcEditor.targetNPC.info.stopandtalkSeconds = Convert.ToSingle(data);
                     break;
                 case "allowsit":
                     npcEditor.targetNPC.info.allowsit = GetBoolValue(data);
@@ -5162,11 +5163,11 @@ namespace Oxide.Plugins
                     break;
                 case "spawn":
                     Quaternion currentRot = StringToQuaternion(rot);
-                    data = data.Replace("(","").Replace(")","");
+                    data = data.Replace("(", "").Replace(")", "");
                     string[] xyz = data.Split(',');
                     //Puts($"Attempting to move NPC to {xyz[0]} {xyz[1]} {xyz[2]}");
-                    Vector3 pv = new Vector3(float.Parse(xyz[0]), float.Parse(xyz[1]), float.Parse(xyz[2]));
-                    SpawnInfo newSpawn = new SpawnInfo(pv, currentRot);
+                    Vector3 pv = new(float.Parse(xyz[0]), float.Parse(xyz[1]), float.Parse(xyz[2]));
+                    SpawnInfo newSpawn = new(pv, currentRot);
                     npcEditor.targetNPC.info.spawnInfo = newSpawn;
                     break;
                 case "hello":
@@ -5202,12 +5203,12 @@ namespace Oxide.Plugins
 
             HumanNPCInfo info = humanPlayer.info.Clone(npcid);
             info.spawnInfo = null;
-            info.protections   = null;
+            info.protections = null;
             info.message_hello = null;
-            info.message_bye   = null;
-            info.message_use   = null;
-            info.message_hurt  = null;
-            info.message_kill  = null;
+            info.message_bye = null;
+            info.message_use = null;
+            info.message_hurt = null;
+            info.message_kill = null;
             return info;
         }
 
@@ -5332,7 +5333,7 @@ namespace Oxide.Plugins
 
         private bool IsHumanNPC(BasePlayer player)
         {
-//            Puts($"IsHumanNPC called for {player.userID}");
+            //            Puts($"IsHumanNPC called for {player.userID}");
             return player.GetComponent<HumanPlayer>() != null;
         }
 
@@ -5467,7 +5468,7 @@ namespace Oxide.Plugins
             }
             else
             {
-                List<BasePlayer> nearPlayers = new List<BasePlayer>();
+                List<BasePlayer> nearPlayers = new();
                 Vis.Entities(caller.transform.position, humanPlayerComponent.info.maxDistance, nearPlayers, playerMask);
                 foreach (BasePlayer responder in nearPlayers)
                 {
@@ -5522,7 +5523,7 @@ namespace Oxide.Plugins
         }
 
         //This is a wrapper that checks for hostility, team alignments etc.
-        private bool StartAttackingEntityIfSupposedTo(BasePlayer npc, BasePlayer player, bool sendChatMessage=false)
+        private bool StartAttackingEntityIfSupposedTo(BasePlayer npc, BasePlayer player, bool sendChatMessage = false)
         {
             bool doAttack = false;
 
@@ -5773,7 +5774,7 @@ namespace Oxide.Plugins
         {
             public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
             {
-                Vector3 vector =(Vector3)value;
+                Vector3 vector = (Vector3)value;
                 writer.WriteValue($"{vector.x} {vector.y} {vector.z}");
             }
 
