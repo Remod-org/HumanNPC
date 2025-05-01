@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.4.0", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.4.1", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -551,13 +551,13 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                RidableHorse2 horse = npc.player.GetMountedVehicle() as RidableHorse2;
+                RidableHorse horse = npc.player.GetMountedVehicle() as RidableHorse;
                 if (horse == null)
                 {
                     // Find a place to sit
-                    List<RidableHorse2> horses = new();
+                    List<RidableHorse> horses = new();
                     Vis.Entities(npc.player.transform.position, 15f, horses);
-                    foreach (RidableHorse2 mountable in horses.Distinct().ToList())
+                    foreach (RidableHorse mountable in horses.Distinct().ToList())
                     {
                         if (debug) Interface.GetMod().LogInfo($"HumanNPC {npc.player.displayName} trying to ride...");
                         if (mountable.GetMounted() != null)
@@ -1058,7 +1058,7 @@ namespace Oxide.Plugins
                 RaycastHit raycastHit;
                 if (Vector3.Distance(npc.player.transform.position, target.transform.position) < 0.5)
                 {
-                    hit = target.transform.position + npc.player.GetOffset(true);
+                    hit = target.transform.position + npc.player.GetOffset();
                 }
                 else if (!Physics.SphereCast(source, .01f, vector32, out raycastHit, float.MaxValue, targetLayer))
                 {
