@@ -16,7 +16,7 @@ using Convert = System.Convert;
 
 namespace Oxide.Plugins
 {
-    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.4.1", ResourceId = 856)]
+    [Info("HumanNPC", "Reneb/Nogrod/Calytic/RFC1920/Nikedemos", "0.4.2", ResourceId = 856)]
     [Description("Adds interactive Human NPCs which can be modded by other plugins")]
     public class HumanNPC : RustPlugin
     {
@@ -502,7 +502,7 @@ namespace Oxide.Plugins
                     npc.player.eyes.NetworkUpdate(mountable.mountAnchor.transform.rotation);
                     //npc.player.ClientRPCPlayer(null, npc.player, "ForcePositionTo", npc.player.transform.position);
                     npc.player.ClientRPC(RpcTarget.Player("ForcePositionTo", npc.player), npc.player.transform.position);
-                    mountable.SetFlag(BaseEntity.Flags.Busy, true, false);
+                    mountable.SetFlagLocal(BaseEntity.Flags.Busy, true, false);
                     sitting = true;
                     break;
                 }
@@ -520,7 +520,7 @@ namespace Oxide.Plugins
                     npc.player.eyes.NetworkUpdate(mountable.mountAnchor.transform.rotation);
                     //npc.player.ClientRPCPlayer(null, npc.player, "ForcePositionTo", npc.player.transform.position);
                     npc.player.ClientRPC(RpcTarget.Player("ForcePositionTo", npc.player), npc.player.transform.position);
-                    mountable.SetFlag(BaseEntity.Flags.Busy, true, false);
+                    mountable.SetFlagLocal(BaseEntity.Flags.Busy, true, false);
                     sitting = true;
                     if (debug) Interface.GetMod().LogInfo($"Setting instrument for {npc.player.displayName} to {mountable.ShortPrefabName}");
                     npc.info.instrument = mountable.ShortPrefabName;
@@ -538,7 +538,7 @@ namespace Oxide.Plugins
                     //                    npc.Invoke("AllowMove",0);
                     BaseMountable mounted = npc.player.GetMounted();
                     mounted.DismountPlayer(npc.player);
-                    mounted.SetFlag(BaseEntity.Flags.Busy, false, false);
+                    mounted.SetFlagLocal(BaseEntity.Flags.Busy, false, false);
                     sitting = false;
                 }
             }
@@ -1715,7 +1715,7 @@ namespace Oxide.Plugins
                 {
                     //okay, it is an NPC based on the userid, let's see if it exists/is accessible
 
-                    foreach (HumanPlayer maybeHumanPlayer in UnityEngine.Object.FindObjectsOfType<HumanPlayer>())
+                    foreach (HumanPlayer maybeHumanPlayer in UnityEngine.Object.FindObjectsByType(typeof(HumanPlayer), FindObjectsSortMode.None).Cast<HumanPlayer>())
                     {
                         if (maybeHumanPlayer.info.userid == this.userid)
                         {
@@ -1742,7 +1742,7 @@ namespace Oxide.Plugins
                 }
                 else
                 {
-                    foreach (BasePlayer maybeBasePlayer in UnityEngine.Object.FindObjectsOfType<BasePlayer>())
+                    foreach (BasePlayer maybeBasePlayer in UnityEngine.Object.FindObjectsByType(typeof(BasePlayer), FindObjectsSortMode.None).Cast<BasePlayer>())
                     {
                         if (maybeBasePlayer.userID == this.userid)
                         {
@@ -2203,7 +2203,7 @@ namespace Oxide.Plugins
 
                 //first, BasePlayers...
 
-                foreach (BasePlayer player in UnityEngine.Object.FindObjectsOfType<BasePlayer>())
+                foreach (BasePlayer player in UnityEngine.Object.FindObjectsByType(typeof(BasePlayer), FindObjectsSortMode.None).Cast<BasePlayer>())
                 {
                     if (player.userID == userid)
                     {
@@ -2220,7 +2220,7 @@ namespace Oxide.Plugins
                 else
                 {
                     //okay maybe HumanPlayers?
-                    foreach (HumanPlayer humanplayer in UnityEngine.Object.FindObjectsOfType<HumanPlayer>())
+                    foreach (HumanPlayer humanplayer in UnityEngine.Object.FindObjectsByType(typeof(HumanPlayer), FindObjectsSortMode.None).Cast<HumanPlayer>())
                     {
                         BasePlayer playerComponent = humanplayer.GetComponent<BasePlayer>();
                         if (humanplayer.info.userid == userid)
@@ -2527,7 +2527,7 @@ namespace Oxide.Plugins
                 mono.GetComponent<BasePlayer>().Kill();
             }
 
-            foreach (NPCEditor gameObj in UnityEngine.Object.FindObjectsOfType<NPCEditor>())
+            foreach (NPCEditor gameObj in UnityEngine.Object.FindObjectsByType(typeof(NPCEditor), FindObjectsSortMode.None).Cast<NPCEditor>())
             {
                 UnityEngine.Object.Destroy(gameObj);
             }
